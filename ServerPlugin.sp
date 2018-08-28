@@ -33,6 +33,31 @@ enum MatchRoundType{
 // game
 ServerMode SERVER_MODE = Default; 
 char CurrentMapName[64];
+
+char MenuOptions[][][32] = {
+	{"cgm","Change geme mod >"},
+		{"def","Default"},
+		{"rtk","Retake"},
+		{"mmk","Matchmaking"},
+		{"trg","Trening"},
+	{"mhd","Match Handler >"},
+		{"swu","Start Warmup"},
+		{"fkr","Force knife round"},
+		{"smm","Start Match"},
+		{"pus","Pause"},
+		{"ups","Unpause"},
+		{"stm","Swap teams"},
+	{"mxp","Mix player"},
+	{"dmg","Damage info >"},
+		{"ton","Turn ON"},
+		{"tof","Turn OFF"},
+	{"dmo","Demo"},
+		{"src","Start recording"},
+		{"spr","Stop recording"},
+	{"",""}
+};
+
+
 // default
 
 // retake
@@ -45,10 +70,10 @@ char CaptainID_CT[40];
 char CaptainID_T[40];
 char CaptainName_T[64];
 char CaptainName_CT[64];
-int TotalPausesCT;
-int TotalPausesT;
-int MaxPausesCT;
-int MaxPausesT;
+int TotalPauses_CT;
+int TotalPauses_T;
+int MaxPauses_CT;
+int MaxPauses_T;
 // trening
 
 
@@ -77,19 +102,162 @@ public void OnPluginStart()
 	HookEvent("round_end", Event_RoundEnd, EventHookMode_Post);
 	HookEvent("player_hurt", Event_PlayerHurt, EventHookMode_Pre);
 	HookEvent("player_death", Event_PlayerDeath);
+	
+	RegConsoleCmd("sm_stay", CMD_Stay, "");
+	RegConsoleCmd("sm_switch", CMD_Switch, "");
+	RegConsoleCmd("sm_unpause", CMD_Unpause, "");
+	RegConsoleCmd("sm_pause", CMD_Pause, "");
+	RegConsoleCmd("sm_ready", CMD_Ready, "");
+	RegConsoleCmd("sm_unready", CMD_Unready, "");
+	
+	RegAdminCmd("sm_smenu", CMD_ServerMenu, ADMFLAG_GENERIC, "");
+	
 }
 
-public OnMapStart()
+public void OnMapStart()
 {
 	//Map String to LowerCase
 	GetCurrentMap(CurrentMapName, sizeof(CurrentMapName));
 	int len = strlen(CurrentMapName);
-	for(new i=0;i < len;i++)
+	for(int i=0;i < len;i++)
 	{
 		CurrentMapName[i] = CharToLower(CurrentMapName[i]);
 	}
 	
 }
+
+
+/*
+* MENU
+*/
+
+public Action Menu_ServerMenu(int client, int args)
+{
+	Menu menu = new Menu(MenuHandler_ServerMenu);
+	
+	if(args == 0){
+		menu.SetTitle(MenuOptions[0][1]);
+		menu.AddItem(MenuOptions[1][0], MenuOptions[1][1]);
+		menu.AddItem(MenuOptions[2][0], MenuOptions[2][1]);
+		menu.AddItem(MenuOptions[3][0], MenuOptions[3][1]);
+		menu.AddItem(MenuOptions[4][0], MenuOptions[4][1]);
+	} else if(args == 5){
+		menu.SetTitle(MenuOptions[5][1]);
+		menu.AddItem(MenuOptions[6][0], MenuOptions[6][1]);
+		menu.AddItem(MenuOptions[7][0], MenuOptions[7][1]);
+		menu.AddItem(MenuOptions[8][0], MenuOptions[8][1]);
+		menu.AddItem(MenuOptions[9][0], MenuOptions[9][1]);
+		menu.AddItem(MenuOptions[10][0], MenuOptions[10][1]);
+		menu.AddItem(MenuOptions[11][0], MenuOptions[11][1]);
+	} else if(args == 12){
+		// non submenu
+	} else if(args == 13){
+		menu.SetTitle(MenuOptions[13][1]);
+		menu.AddItem(MenuOptions[14][0], MenuOptions[14][1]);
+		menu.AddItem(MenuOptions[15][0], MenuOptions[15][1]);
+	} else if(args == 16){
+		menu.SetTitle(MenuOptions[16][1]);
+		menu.AddItem(MenuOptions[17][0], MenuOptions[17][1]);
+		menu.AddItem(MenuOptions[18][0], MenuOptions[18][1]);
+	} else {
+		menu.SetTitle("Server menu");
+		menu.AddItem(MenuOptions[0][0], MenuOptions[0][1]);
+		menu.AddItem(MenuOptions[5][0], MenuOptions[5][1]);
+		menu.AddItem(MenuOptions[12][0], MenuOptions[12][1]);
+		menu.AddItem(MenuOptions[13][0], MenuOptions[13][1]);
+		menu.AddItem(MenuOptions[16][0], MenuOptions[16][1]);
+	}		
+
+	menu.ExitButton = true;
+	menu.Display(client, 20);
+ 
+	return Plugin_Handled;
+}
+
+public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int param2)
+{
+	/* If an option was selected, tell the client about the item. */
+	if (action == MenuAction_Select)
+	{
+		char info[32];
+		bool found = menu.GetItem(param2, info, sizeof(info));
+		//PrintToConsole(param1, "You selected item: %d (found? %d info: %s)", param2, found, info);
+		
+		if (StrEqual(info, MenuOptions[0][0]))
+		{
+			Menu_ServerMenu(param1, 0);
+		}
+		else if (StrEqual(info, MenuOptions[1][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[2][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[3][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[4][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[5][0]))
+		{
+			Menu_ServerMenu(param1, 5);
+		}
+		else if (StrEqual(info, MenuOptions[6][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[7][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[8][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[9][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[10][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[11][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[12][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[13][0]))
+		{
+			Menu_ServerMenu(param1, 13);
+		}
+		else if (StrEqual(info, MenuOptions[14][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[15][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[16][0]))
+		{
+			Menu_ServerMenu(param1, 16);
+		}
+		else if (StrEqual(info, MenuOptions[17][0]))
+		{}
+		else if (StrEqual(info, MenuOptions[18][0]))
+		{}
+		
+	}
+	/* If the menu was cancelled, print a message to the server about it. */
+	else if (action == MenuAction_Cancel)
+	{
+		PrintToServer("Client %d's menu was cancelled.  Reason: %d", param1, param2);
+	}
+	/* If the menu has ended, destroy it */
+	else if (action == MenuAction_End)
+	{
+		delete menu;
+	}
+}
+
+/*
+* Commands
+*/
+
+public Action CMD_ServerMenu(int client, int args){
+	Menu_ServerMenu(client, -1);
+}
+
+
+public Action CMD_Stay(int client, int args){}
+public Action CMD_Switch(int client, int args){}
+public Action CMD_Unpause(int client, int args){}
+public Action CMD_Pause(int client, int args){}
+public Action CMD_Ready(int client, int args){}
+public Action CMD_Unready(int client, int args){}
 
 
 /*
@@ -134,9 +302,9 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 	char hsSufix[10];
  
  	if(headshot){
-		char hsSufix[10] = "(headshot)";
+ 		strcopy(hsSufix, 10, "(headshot)");
 	}else{
-		char hsSufix[10] = "";
+		strcopy(hsSufix, 1, " ");
 	}
 	
 	PrintToChatAll("%s killed %s with %s %s",
