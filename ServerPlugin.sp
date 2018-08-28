@@ -2,7 +2,7 @@
 
 #define DEBUG
 
-#define PLUGIN_AUTHOR ""
+#define PLUGIN_AUTHOR "KawalChama"
 #define PLUGIN_VERSION "1.00"
 
 #include <sourcemod>
@@ -25,7 +25,32 @@ enum ServerMode {
 	Trening
 };
 
+enum MatchRoundType{
+	WarmupRound,
+	KnifeRound,
+	MatchRound
+}
+// game
 ServerMode SERVER_MODE = Default; 
+char CurrentMapName[64];
+// default
+
+// retake
+
+// match
+MatchRoundType CurrentRoundType;
+int Damage[MAXPLAYERS + 1][MAXPLAYERS + 1];
+int Hits[MAXPLAYERS + 1][MAXPLAYERS + 1];
+char CaptainID_CT[40];
+char CaptainID_T[40];
+char CaptainName_T[64];
+char CaptainName_CT[64];
+int TotalPausesCT;
+int TotalPausesT;
+int MaxPausesCT;
+int MaxPausesT;
+// trening
+
 
 /*
 * PLUGIN HANDLER
@@ -48,13 +73,176 @@ public void OnPluginStart()
 		SetFailState("This plugin is for CSGO only.");	
 	}
 	
+	HookEvent("round_start", Event_RoundStart);
+	HookEvent("round_end", Event_RoundEnd, EventHookMode_Post);
+	HookEvent("player_hurt", Event_PlayerHurt, EventHookMode_Pre);
+	HookEvent("player_death", Event_PlayerDeath);
+}
+
+public OnMapStart()
+{
+	//Map String to LowerCase
+	GetCurrentMap(CurrentMapName, sizeof(CurrentMapName));
+	int len = strlen(CurrentMapName);
+	for(new i=0;i < len;i++)
+	{
+		CurrentMapName[i] = CharToLower(CurrentMapName[i]);
+	}
 	
 }
+
+
+/*
+* EVENTS
+*/
+
+public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
+{
+	int attacker = GetClientOfUserId(event.GetInt("attacker"));
+	int victim = GetClientOfUserId(event.GetInt("userid"));
+	bool validAttacker = IsClientValid(attacker);
+	bool validVictim = IsClientValid(victim);
+	
+	if (validAttacker && validVictim)
+	{
+		int client_health = GetClientHealth(victim);
+		int health_damage = event.GetInt("dmg_health");
+		int event_client_health = event.GetInt("health");
+		if (event_client_health == 0) {
+			health_damage += client_health;
+		}
+		Damage[attacker][victim] += health_damage;
+		Hits[attacker][victim]++;
+	}
+}
+
+public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
+{
+	int victim = GetClientOfUserId(event.GetInt("userid"));
+	int attacker = GetClientOfUserId(event.GetInt("attacker"));
+	bool headshot = event.GetBool("headshot");
+	char weapon[64]; 
+	event.GetString("weapon", weapon, sizeof(weapon));
+	
+	
+	char victimName[64]; 
+	GetClientName(victim, victimName, sizeof(victimName));
+	
+	char attackerName[64]; 
+	GetClientName(attacker, attackerName, sizeof(attackerName));
+ 
+	char hsSufix[10];
+ 
+ 	if(headshot){
+		char hsSufix[10] = "(headshot)";
+	}else{
+		char hsSufix[10] = "";
+	}
+	
+	PrintToChatAll("%s killed %s with %s %s",
+					attackerName,
+					victimName,
+					weapon,
+					hsSufix);
+ 
+	
+	if (CurrentRoundType == MatchRound)
+	{
+		if (IsClientValid(victim))
+		{
+			PrintHintText(victim, "<font color='#0087af'><b><u>%N</u></b></font><br><font color='#87df87'>Frags: %d   </font><font color='#af0000'>Deaths: %d</font><br><font color='#dfdf00'>MVPS: %d</font>", victim, GetClientFrags(victim), GetClientDeaths(victim), CS_GetMVPCount(victim));
+		}
+	}
+}
+
+public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
+{
+	if(SERVER_MODE == Default){	
+		
+	} else if(SERVER_MODE == Retake){
+
+	} else if(SERVER_MODE == Matchmaking){
+
+	} else if(SERVER_MODE == Trening){
+
+	}
+
+	return Plugin_Handled;
+}
+
+public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
+{
+
+	if(SERVER_MODE == Default){	
+		
+	} else if(SERVER_MODE == Retake){
+
+	} else if(SERVER_MODE == Matchmaking){
+
+	} else if(SERVER_MODE == Trening){
+
+	}
+	
+	return Plugin_Handled;
+}
+
 
 /*
 * Server mode hendlers
 */
 
+// round start
+public void RoundStartHandler_ServerModeDefault(Event event){
+
+}
+
+public void RoundStartHandler_ServerModeRetake(Event event){
+
+}
+
+public void RoundStartHandler_ServerModeMatchmaking(Event event){
+
+	if(CurrentRoundType == WarmupRound){
+
+	} else if(CurrentRoundType == KnifeRound){
+
+	} else if(CurrentRoundType == MatchRound){
+
+	}
+
+}
+
+public void RoundStartHandler_ServerModeTrening(Event event){
+
+}
+
+// round end
+public void RoundEndHandler_ServerModeDefault(Event event){
+
+}
+
+public void RoundEndHandler_ServerModeRetake(Event event){
+
+}
+
+public void RoundEndHandler_ServerModeMatchmaking(Event event){
+	
+	if(CurrentRoundType == WarmupRound){
+
+	} else if(CurrentRoundType == KnifeRound){
+
+	} else if(CurrentRoundType == MatchRound){
+
+	}
+	
+}
+
+public void RoundEndHandler_ServerModeTrening(Event event){
+
+}
+
+
+// server mode change
 public void RunDefaultMode(){
 	SERVER_MODE = Default;
 }
