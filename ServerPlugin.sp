@@ -159,15 +159,19 @@ public void InitGame(){
 */
 
 public Action Menu_ServerMenu(int client, int args){
+	OpenMenu_ServerMenu(client, -1);
+}
+
+public void OpenMenu_ServerMenu(int client , int level){
 	Menu menu = new Menu(MenuHandler_ServerMenu);
 	
-	if(args == 0){
+	if(level == 0){
 		menu.SetTitle(MenuOptions[0][1]);
 		menu.AddItem(MenuOptions[1][0], MenuOptions[1][1]);
 		menu.AddItem(MenuOptions[2][0], MenuOptions[2][1]);
 		menu.AddItem(MenuOptions[3][0], MenuOptions[3][1]);
 		menu.AddItem(MenuOptions[4][0], MenuOptions[4][1]);
-	} else if(args == 5){
+	} else if(level == 5){
 		menu.SetTitle(MenuOptions[5][1]);
 		menu.AddItem(MenuOptions[6][0], MenuOptions[6][1]);
 		menu.AddItem(MenuOptions[7][0], MenuOptions[7][1]);
@@ -175,13 +179,13 @@ public Action Menu_ServerMenu(int client, int args){
 		menu.AddItem(MenuOptions[9][0], MenuOptions[9][1]);
 		menu.AddItem(MenuOptions[10][0], MenuOptions[10][1]);
 		menu.AddItem(MenuOptions[11][0], MenuOptions[11][1]);
-	} else if(args == 12){
+	} else if(level == 12){
 		// non submenu
-	} else if(args == 13){
+	} else if(level == 13){
 		menu.SetTitle(MenuOptions[13][1]);
 		menu.AddItem(MenuOptions[14][0], MenuOptions[14][1]);
 		menu.AddItem(MenuOptions[15][0], MenuOptions[15][1]);
-	} else if(args == 16){
+	} else if(level == 16){
 		menu.SetTitle(MenuOptions[16][1]);
 		menu.AddItem(MenuOptions[17][0], MenuOptions[17][1]);
 		menu.AddItem(MenuOptions[18][0], MenuOptions[18][1]);
@@ -196,8 +200,6 @@ public Action Menu_ServerMenu(int client, int args){
 
 	menu.ExitButton = true;
 	menu.Display(client, 20);
- 
-	return Plugin_Handled;
 }
 
 public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int param2){
@@ -205,12 +207,12 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 	if (action == MenuAction_Select)
 	{
 		char info[32];
-		//bool found = menu.GetItem(param2, info, sizeof(info));
-		//PrintToConsole(param1, "You selected item: %d (found? %d info: %s)", param2, found, info);
+		bool found = menu.GetItem(param2, info, sizeof(info));
+		PrintToConsole(param1, "You selected item: %d (found? %d info: %s)", param2, found, info);
 		
 		if (StrEqual(info, MenuOptions[0][0]))
 		{
-			Menu_ServerMenu(param1, 0);
+			OpenMenu_ServerMenu(param1, 0);
 		}
 		else if (StrEqual(info, MenuOptions[1][0]))
 		{
@@ -230,7 +232,7 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 		}
 		else if (StrEqual(info, MenuOptions[5][0]))
 		{
-			Menu_ServerMenu(param1, 5);
+			OpenMenu_ServerMenu(param1, 5);
 		}
 		else if (StrEqual(info, MenuOptions[6][0]))
 		{}
@@ -254,7 +256,7 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 		}
 		else if (StrEqual(info, MenuOptions[13][0]))
 		{
-			Menu_ServerMenu(param1, 13);
+			OpenMenu_ServerMenu(param1, 13);
 		}
 		else if (StrEqual(info, MenuOptions[14][0]))
 		{}
@@ -262,7 +264,7 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 		{}
 		else if (StrEqual(info, MenuOptions[16][0]))
 		{
-			Menu_ServerMenu(param1, 16);
+			OpenMenu_ServerMenu(param1, 16);
 		}
 		else if (StrEqual(info, MenuOptions[17][0]))
 		{
@@ -451,12 +453,12 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 	char attackerName[64]; 
 	GetClientName(attacker, attackerName, sizeof(attackerName));
  
-	char hsSufix[10];
+	char hsSufix[11];
  
  	if(headshot){
- 		strcopy(hsSufix, 10, "(headshot)");
+ 		strcopy(hsSufix, 11, "(headshot)");
 	}else{
-		strcopy(hsSufix, 10, "");
+		strcopy(hsSufix, 11, "");
 	}
 	
 	PrintToChatAll("%s %s killed %s with %s %s",
