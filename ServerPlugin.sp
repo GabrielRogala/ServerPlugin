@@ -24,15 +24,17 @@ enum ServerMode {
 	Matchmaking,
 	Trening
 };
-
 enum MatchRoundType{
 	WarmupRound,
 	KnifeRound,
 	MatchRound
 }
+
 // game
 ServerMode SERVER_MODE = Default; 
+char PREFIX_PLUGIN[] = "[LOG]";
 char CurrentMapName[64];
+char DemoFileName[64];
 
 char MenuOptions[][][32] = {
 	{"cgm","Change geme mod >"},
@@ -74,6 +76,9 @@ int TotalPauses_CT;
 int TotalPauses_T;
 int MaxPauses_CT;
 int MaxPauses_T;
+bool DemoRecorded;
+int ReadyPlayers;
+char PlayersReadyList[MAXPLAYERS + 1][64];
 // trening
 
 
@@ -123,7 +128,10 @@ public void OnMapStart()
 	{
 		CurrentMapName[i] = CharToLower(CurrentMapName[i]);
 	}
-	
+	DemoRecorded = false;
+	ReadyPlayers = 0;
+	ServerCommand("tv_enable 1");
+	//ServerCommand("changelevel \"%s\"",CurrentMapName);
 }
 
 
@@ -226,9 +234,13 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 			Menu_ServerMenu(param1, 16);
 		}
 		else if (StrEqual(info, MenuOptions[17][0]))
-		{}
+		{
+			StartRecordDemo(param1);
+		}
 		else if (StrEqual(info, MenuOptions[18][0]))
-		{}
+		{
+			StopRecordDemo(param1);
+		}
 		
 	}
 	/* If the menu was cancelled, print a message to the server about it. */
@@ -256,16 +268,30 @@ public Action CMD_Stay(int client, int args){}
 public Action CMD_Switch(int client, int args){}
 public Action CMD_Unpause(int client, int args){}
 public Action CMD_Pause(int client, int args){}
-public Action CMD_Ready(int client, int args){}
-public Action CMD_Unready(int client, int args){}
+
+public Action CMD_Ready(int client, int args){
+	if(StrEqual(PlayersReadyList[client],"")){
+		GetClientName(client, PlayersReadyList[client], 64);
+		ReadyPlayers++;
+	}
+}
+
+public Action CMD_Unready(int client, int args){
+	char clientName[64];
+	GetClientName(client, clientName, sizeof(clientName));
+	
+	if(StrEqual(PlayersReadyList[client],clientName)){
+		strcopy(PlayersReadyList[client], 64, "");
+		ReadyPlayers--;
+	}
+}
 
 
 /*
 * EVENTS
 */
 
-public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast)
-{
+public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcast){
 	int attacker = GetClientOfUserId(event.GetInt("attacker"));
 	int victim = GetClientOfUserId(event.GetInt("userid"));
 	bool validAttacker = IsClientValid(attacker);
@@ -284,8 +310,7 @@ public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcas
 	}
 }
 
-public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
-{
+public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadcast){
 	int victim = GetClientOfUserId(event.GetInt("userid"));
 	int attacker = GetClientOfUserId(event.GetInt("attacker"));
 	bool headshot = event.GetBool("headshot");
@@ -304,10 +329,11 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
  	if(headshot){
  		strcopy(hsSufix, 10, "(headshot)");
 	}else{
-		strcopy(hsSufix, 1, " ");
+		strcopy(hsSufix, 10, "");
 	}
 	
-	PrintToChatAll("%s killed %s with %s %s",
+	PrintToChatAll("%s %s killed %s with %s %s",
+					PREFIX_PLUGIN,
 					attackerName,
 					victimName,
 					weapon,
@@ -323,8 +349,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 	}
 }
 
-public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast)
-{
+public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast){
 	if(SERVER_MODE == Default){	
 		
 	} else if(SERVER_MODE == Retake){
@@ -337,9 +362,7 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 
 	return Plugin_Handled;
 }
-
-public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
-{
+public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast){
 
 	if(SERVER_MODE == Default){	
 		
@@ -363,11 +386,9 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 public void RoundStartHandler_ServerModeDefault(Event event){
 
 }
-
 public void RoundStartHandler_ServerModeRetake(Event event){
 
 }
-
 public void RoundStartHandler_ServerModeMatchmaking(Event event){
 
 	if(CurrentRoundType == WarmupRound){
@@ -379,7 +400,6 @@ public void RoundStartHandler_ServerModeMatchmaking(Event event){
 	}
 
 }
-
 public void RoundStartHandler_ServerModeTrening(Event event){
 
 }
@@ -388,11 +408,9 @@ public void RoundStartHandler_ServerModeTrening(Event event){
 public void RoundEndHandler_ServerModeDefault(Event event){
 
 }
-
 public void RoundEndHandler_ServerModeRetake(Event event){
 
 }
-
 public void RoundEndHandler_ServerModeMatchmaking(Event event){
 	
 	if(CurrentRoundType == WarmupRound){
@@ -404,7 +422,6 @@ public void RoundEndHandler_ServerModeMatchmaking(Event event){
 	}
 	
 }
-
 public void RoundEndHandler_ServerModeTrening(Event event){
 
 }
@@ -414,15 +431,12 @@ public void RoundEndHandler_ServerModeTrening(Event event){
 public void RunDefaultMode(){
 	SERVER_MODE = Default;
 }
-
 public void RunRetakeMode(){
 	SERVER_MODE = Retake;
 }
-
 public void RunMatchMode(){
 	SERVER_MODE = Matchmaking;
 }
-
 public void RunTreningMode(){
 	SERVER_MODE = Trening;
 }
@@ -432,22 +446,62 @@ public void RunTreningMode(){
 * METHODS
 */
 
+public void StartRecordDemo(int client){
+	if(!DemoRecorded){
+		DemoRecorded = true;
+		char time[64];
+		FormatTime(time, sizeof(time), "%F-%R");
+		Format(DemoFileName, sizeof(DemoFileName), "%s-%s",CurrentMapName, time);
+		ServerCommand("tv_record \"%s\"",DemoFileName);
+		PrintToChat(client, "%s Start recording to file : %s.dem", PREFIX_PLUGIN, DemoFileName);
+	}else{
+		PrintToChat(client, "%s Demo is currently being recorded to file %s.dem", PREFIX_PLUGIN, DemoFileName);
+	}
+}
 
-public bool IsClientValid(int client)
-{
+public void StopRecordDemo(int client){
+	ServerCommand("tv_stoprecord");
+	DemoRecorded = false;
+	PrintToChat(client, "%s Demo was saved to a file %s.dem", PREFIX_PLUGIN, DemoFileName);
+}
+
+public bool IsClientValid(int client){
 	if (client >= 1 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client) && !IsFakeClient(client))
 		return true;
 	return false;
 }
 
-public bool IsClientTeamValid(int client)
-{
+public bool IsClientTeamValid(int client){
 	int ClientTeam = GetClientTeam(client);
 	if (ClientTeam != CS_TEAM_CT && ClientTeam != CS_TEAM_T)
 	{
 		return false;
 	}
 	return true;
+}
+
+public void OnClientDisconnect(int client){
+	if (IsPlayerReady(client))
+	{
+		strcopy(PlayersReadyList[client], 64, "");
+		ReadyPlayers--;
+	}
+}
+
+public bool IsPlayerReady(int client){
+	
+	if (CurrentRoundType == WarmupRound){
+		char clientName[64];
+		GetClientName(client, clientName, sizeof(clientName));
+	
+		if(StrEqual(PlayersReadyList[client],clientName)){
+			return true;
+		} else {
+			return false;
+		}
+	}else{
+		return false;
+	}
 }
 
 /*
