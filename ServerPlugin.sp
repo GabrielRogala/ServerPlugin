@@ -54,7 +54,7 @@ char MenuOptions[][][32] = {
 		{"pus","Pause"},
 		{"ups","Unpause"},
 		{"stm","Swap teams"},
-	{"mxp","Mix player"},
+	{"mxp","Scramble"},
 	{"dmg","Damage info >"},
 		{"ton","Turn ON"},
 		{"tof","Turn OFF"},
@@ -78,8 +78,10 @@ char CaptainID_CT[40];
 char CaptainID_T[40];
 char CaptainName_T[64];
 char CaptainName_CT[64];
-//int TotalPauses_CT;
-//int TotalPauses_T;
+int UsedPauses_CT;
+int UsedPauses_T;
+bool UnpausesConfirm_T;
+bool UnpausesConfirm_CT;
 //int MaxPauses_CT;
 //int MaxPauses_T;
 bool DemoRecorded;
@@ -92,8 +94,7 @@ char PlayersReadyList[MAXPLAYERS + 1][64];
 * PLUGIN HANDLER
 */
 
-public Plugin myinfo = 
-{
+public Plugin myinfo = {
 	name = "",
 	author = PLUGIN_AUTHOR,
 	description = "",
@@ -101,8 +102,7 @@ public Plugin myinfo =
 	url = ""
 };
 
-public void OnPluginStart()
-{
+public void OnPluginStart(){
 	g_Game = GetEngineVersion();
 	if(g_Game != Engine_CSGO)
 	{
@@ -122,11 +122,10 @@ public void OnPluginStart()
 	RegConsoleCmd("sm_unready", CMD_Unready, "");
 	
 	RegAdminCmd("sm_smenu", CMD_ServerMenu, ADMFLAG_GENERIC, "");
-	
+	RegAdminCmd("sm_scramble", CMD_Scramble, ADMFLAG_ROOT);
 }
 
-public void OnMapStart()
-{
+public void OnMapStart(){
 	//Map String to LowerCase
 	GetCurrentMap(CurrentMapName, sizeof(CurrentMapName));
 	int len = strlen(CurrentMapName);
@@ -138,15 +137,28 @@ public void OnMapStart()
 	ReadyPlayers = 0;
 	ServerCommand("tv_enable 1");
 	//ServerCommand("changelevel \"%s\"",CurrentMapName);
+	
+	InitGame();
 }
 
+public void InitGame(){
+	if(SERVER_MODE == Default){	
+		
+	} else if(SERVER_MODE == Retake){
+		LoadMapSpawns(CurrentMapName);
+	} else if(SERVER_MODE == Matchmaking){
+
+	} else if(SERVER_MODE == Trening){
+
+	}
+
+}
 
 /*
 * MENU
 */
 
-public Action Menu_ServerMenu(int client, int args)
-{
+public Action Menu_ServerMenu(int client, int args){
 	Menu menu = new Menu(MenuHandler_ServerMenu);
 	
 	if(args == 0){
@@ -188,8 +200,7 @@ public Action Menu_ServerMenu(int client, int args)
 	return Plugin_Handled;
 }
 
-public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int param2)
-{
+public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int param2){
 	/* If an option was selected, tell the client about the item. */
 	if (action == MenuAction_Select)
 	{
@@ -202,13 +213,21 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 			Menu_ServerMenu(param1, 0);
 		}
 		else if (StrEqual(info, MenuOptions[1][0]))
-		{}
+		{
+			RunDefaultMode();
+		}
 		else if (StrEqual(info, MenuOptions[2][0]))
-		{}
+		{
+			RunRetakeMode();
+		}
 		else if (StrEqual(info, MenuOptions[3][0]))
-		{}
+		{
+			RunMatchMode();
+		}
 		else if (StrEqual(info, MenuOptions[4][0]))
-		{}
+		{
+			RunTreningMode();
+		}
 		else if (StrEqual(info, MenuOptions[5][0]))
 		{
 			Menu_ServerMenu(param1, 5);
@@ -220,13 +239,19 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 		else if (StrEqual(info, MenuOptions[8][0]))
 		{}
 		else if (StrEqual(info, MenuOptions[9][0]))
-		{}
+		{
+			CMD_Pause(param1, 0);
+		}
 		else if (StrEqual(info, MenuOptions[10][0]))
-		{}
+		{
+			CMD_Unpause(param1, 0);
+		}
 		else if (StrEqual(info, MenuOptions[11][0]))
 		{}
 		else if (StrEqual(info, MenuOptions[12][0]))
-		{}
+		{
+			CMD_Scramble(param1, 0);
+		}
 		else if (StrEqual(info, MenuOptions[13][0]))
 		{
 			Menu_ServerMenu(param1, 13);
@@ -293,8 +318,82 @@ public Action CMD_Switch(int client, int args){
 	return Plugin_Handled;
 }
 
-public Action CMD_Unpause(int client, int args){}
-public Action CMD_Pause(int client, int args){}
+public Action CMD_Unpause(int client, int args){
+	
+	if(CurrentRoundType == MatchRound){
+		if (!IsPaused() || !IsClientValid(client))
+		{
+			return Plugin_Handled;
+		}
+		
+		/*
+		if (!CaptainCheck(client))
+		{
+			return Plugin_Handled;
+		}
+		*/
+		
+		int team = GetClientTeam(client);
+		
+		if (team == CS_TEAM_CT){
+			UnpausesConfirm_CT = true;
+		}else if(team == CS_TEAM_T){
+			UnpausesConfirm_T = true;
+		}
+		
+		if (UnpausesConfirm_T && UnpausesConfirm_CT)
+		{
+			ServerCommand("mp_unpause_match");
+			return Plugin_Handled;
+		}else{
+			if(!UnpausesConfirm_T){
+				PrintToChatAll("%s Unpause called by %s. Waiting for %s to !unpause", CaptainName_CT, CaptainName_T);
+			}
+			
+			if(!UnpausesConfirm_CT){
+				PrintToChatAll("%s Unpause called by %s. Waiting for %s to !unpause", CaptainName_T, CaptainName_CT);
+			}
+		}
+		
+	}
+	
+	return Plugin_Handled;
+}
+
+public Action CMD_Pause(int client, int args){
+	if(CurrentRoundType == MatchRound){
+		if (IsPaused() || !IsClientValid(client))
+		{
+			return Plugin_Handled;
+		}
+		
+		/*
+		if (!CaptainCheck(client))
+		{
+			return Plugin_Handled;
+		}
+		*/
+		int team = GetClientTeam(client);
+		
+		if (team == CS_TEAM_CT){
+			PrintToChatAll("%s Timeout at freezetime called by %s", PREFIX_PLUGIN, CaptainName_CT);
+			ServerCommand("mp_pause_match");
+			UsedPauses_CT++;
+			UnpausesConfirm_T = false;
+			UnpausesConfirm_CT = false;
+			return Plugin_Handled;
+		}else if(team == CS_TEAM_T){
+			PrintToChatAll("%s Timeout at freezetime called by %s", PREFIX_PLUGIN, CaptainName_T);
+			ServerCommand("mp_pause_match");
+			UsedPauses_T++;
+			UnpausesConfirm_T = false;
+			UnpausesConfirm_CT = false;
+			return Plugin_Handled;
+		}
+	}
+	
+	return Plugin_Handled;
+}
 
 public Action CMD_Ready(int client, int args){
 	if(StrEqual(PlayersReadyList[client],"")){
@@ -313,6 +412,7 @@ public Action CMD_Unready(int client, int args){
 	}
 }
 
+public Action CMD_Scramble(int client, int args){}
 
 /*
 * EVENTS
@@ -389,6 +489,7 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 
 	return Plugin_Handled;
 }
+
 public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast){
 
 	if(SERVER_MODE == Default){	
@@ -404,7 +505,6 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 	return Plugin_Handled;
 }
 
-
 /*
 * Server mode hendlers
 */
@@ -413,9 +513,21 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 public void RoundStartHandler_ServerModeDefault(Event event){
 
 }
-public void RoundStartHandler_ServerModeRetake(Event event){
 
+public void RoundStartHandler_ServerModeRetake(Event event){
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		//Client_RemoveAllWeapons(i);
+		SetRandomWeapon(i);
+		SetRandomGrenade(i);
+		SetRandomHP(i);
+		
+		SetPlayerPosition(i);
+	}
+	
+	SetRandomBomb();
 }
+
 public void RoundStartHandler_ServerModeMatchmaking(Event event){
 
 	if(CurrentRoundType == WarmupRound){
@@ -427,6 +539,7 @@ public void RoundStartHandler_ServerModeMatchmaking(Event event){
 	}
 
 }
+
 public void RoundStartHandler_ServerModeTrening(Event event){
 
 }
@@ -435,9 +548,11 @@ public void RoundStartHandler_ServerModeTrening(Event event){
 public void RoundEndHandler_ServerModeDefault(Event event){
 
 }
+
 public void RoundEndHandler_ServerModeRetake(Event event){
 
 }
+
 public void RoundEndHandler_ServerModeMatchmaking(Event event){
 	
 	if(CurrentRoundType == WarmupRound){
@@ -449,29 +564,42 @@ public void RoundEndHandler_ServerModeMatchmaking(Event event){
 	}
 	
 }
+
 public void RoundEndHandler_ServerModeTrening(Event event){
 
 }
-
 
 // server mode change
 public void RunDefaultMode(){
 	SERVER_MODE = Default;
 }
+
 public void RunRetakeMode(){
 	SERVER_MODE = Retake;
 }
+
 public void RunMatchMode(){
 	SERVER_MODE = Matchmaking;
 }
+
 public void RunTreningMode(){
 	SERVER_MODE = Trening;
 }
 
-
 /*
 * METHODS
 */
+
+public void LoadMapSpawns(char[] mapName){}
+public void SetRandomWeapon(int client){}
+public void SetRandomGrenade(int client){}
+public void SetRandomHP(int client){}
+public void SetPlayerPosition(int client){}
+public void	SetRandomBomb(){}
+
+public bool IsPaused(){
+	return GameRules_GetProp("m_bMatchWaitingForResume") != 0;
+}
 
 public void SetCapitan(int client){
 	int clientTeam = GetClientTeam(client);
@@ -487,7 +615,7 @@ public void SetCapitan(int client){
 	
 }
 
-public bool CaptainCheck(int client){
+public bool CheckCapitan(int client){
 	
 	char clinetId[32];
 	GetClientAuthId(client, AuthId_Steam2, clinetId, 32, false);
@@ -516,8 +644,7 @@ public bool CaptainCheck(int client){
 	return false;
 }
 
-public void SwapPlayer(int client, int target)
-{
+public void SwapPlayer(int client, int target){
 	switch (GetClientTeam(target))
 	{
 		case TEAM1 : ChangeClientTeam(client, TEAM2);
@@ -586,17 +713,10 @@ public bool IsPlayerReady(int client){
 }
 
 /*
-* Matach methods
-*/
-
-
-
-/*
 * Configs TODO
 */
 
-public Action ConfigDefault(int client, int cfg)
-{
+public Action ConfigDefault(int client, int cfg){
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -723,8 +843,7 @@ public Action ConfigDefault(int client, int cfg)
 	return Plugin_Handled;
 }
 
-public Action ConfigMatch(int client, int cfg)
-{
+public Action ConfigMatch(int client, int cfg){
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("mp_give_player_c4 1");
@@ -853,8 +972,7 @@ public Action ConfigMatch(int client, int cfg)
 	return Plugin_Handled;
 }
 
-public Action ConfigWarmup(int client, int cfg)
-{
+public Action ConfigWarmup(int client, int cfg){
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -981,8 +1099,7 @@ public Action ConfigWarmup(int client, int cfg)
 	return Plugin_Handled;
 }
 
-public Action ConfigKnifeRound(int client, int cfg)
-{
+public Action ConfigKnifeRound(int client, int cfg){
 	ServerCommand("mp_unpause_match");
 	ServerCommand("mp_warmuptime 1");
 	ServerCommand("mp_ct_default_secondary none");
@@ -999,8 +1116,134 @@ public Action ConfigKnifeRound(int client, int cfg)
 	return Plugin_Handled;
 }
 
-public Action ConfigTrening(int client, int cfg)
-{
+public Action ConfigTrening(int client, int cfg){
+	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
+	ServerCommand("mp_t_default_secondary weapon_glock");
+	ServerCommand("ammo_grenade_limit_default 0");
+	ServerCommand("ammo_grenade_limit_flashbang 0");
+	ServerCommand("ammo_grenade_limit_total 0");
+	ServerCommand("bot_quota 0");
+	ServerCommand("cash_player_bomb_defused 300");
+	ServerCommand("cash_player_bomb_planted 300");
+	ServerCommand("cash_player_damage_hostage -30");
+	ServerCommand("cash_player_interact_with_hostage 150");
+	ServerCommand("cash_player_killed_enemy_default 300");
+	ServerCommand("cash_player_killed_enemy_factor 1");
+	ServerCommand("cash_player_killed_hostage -1000");
+	ServerCommand("cash_player_killed_teammate -300");
+	ServerCommand("cash_player_rescued_hostage 1000");
+	ServerCommand("cash_team_elimination_bomb_map 3250");
+	ServerCommand("cash_team_hostage_alive 150");
+	ServerCommand("cash_team_hostage_interaction 150");
+	ServerCommand("cash_team_loser_bonus 1400");
+	ServerCommand("cash_team_loser_bonus_consecutive_rounds 500");
+	ServerCommand("cash_team_planted_bomb_but_defused 800");
+	ServerCommand("cash_team_rescued_hostage 750");
+	ServerCommand("cash_team_terrorist_win_bomb 3500");
+	ServerCommand("cash_team_win_by_defusing_bomb 3500");
+	ServerCommand("cash_team_win_by_hostage_rescue 3500");
+	ServerCommand("cash_player_get_killed 0");
+	ServerCommand("cash_player_respawn_amount 0");
+	ServerCommand("cash_team_elimination_hostage_map_ct 2000");
+	ServerCommand("cash_team_elimination_hostage_map_t 1000");
+	ServerCommand("cash_team_win_by_time_running_out_bomb 3250");
+	ServerCommand("cash_team_win_by_time_running_out_hostage 3250");
+	ServerCommand("ff_damage_reduction_grenade 0.85");
+	ServerCommand("ff_damage_reduction_bullets 0.33");
+	ServerCommand("ff_damage_reduction_other 0.4");
+	ServerCommand("ff_damage_reduction_grenade_self 1");
+	ServerCommand("mp_afterroundmoney 0");
+	ServerCommand("mp_autokick 0");
+	ServerCommand("mp_autoteambalance 0");
+	ServerCommand("mp_buytime 15");
+	ServerCommand("mp_c4timer 35");
+	ServerCommand("mp_death_drop_defuser 1");
+	ServerCommand("mp_death_drop_grenade 2");
+	ServerCommand("mp_death_drop_gun 1");
+	ServerCommand("mp_defuser_allocation 0");
+	ServerCommand("mp_do_warmup_period 1");
+	ServerCommand("mp_forcecamera 1");
+	ServerCommand("mp_force_pick_time 160");
+	ServerCommand("mp_free_armor 0");
+	ServerCommand("mp_freezetime 6");
+	ServerCommand("mp_friendlyfire 0");
+	ServerCommand("mp_halftime 0");
+	ServerCommand("mp_halftime_duration 0");
+	ServerCommand("mp_join_grace_time 30");
+	ServerCommand("mp_limitteams 0");
+	ServerCommand("mp_logdetail 3");
+	ServerCommand("mp_match_can_clinch 1");
+	ServerCommand("mp_match_end_restart 1");
+	ServerCommand("mp_maxmoney 9999999");
+	ServerCommand("mp_maxrounds 5");
+	ServerCommand("mp_molotovusedelay 0");
+	ServerCommand("mp_overtime_enable 1");
+	ServerCommand("mp_overtime_maxrounds 10");
+	ServerCommand("mp_overtime_startmoney 16000");
+	ServerCommand("mp_playercashawards 1");
+	ServerCommand("mp_playerid 0");
+	ServerCommand("mp_playerid_delay 0.5");
+	ServerCommand("mp_playerid_hold 0.25");
+	ServerCommand("mp_round_restart_delay 5");
+	ServerCommand("mp_roundtime 10");
+	ServerCommand("mp_roundtime_defuse 10");
+	ServerCommand("mp_solid_teammates 1");
+	ServerCommand("mp_startmoney 9999999");
+	ServerCommand("mp_teamcashawards 1");
+	ServerCommand("mp_timelimit 0");
+	ServerCommand("mp_tkpunish 0");
+	ServerCommand("mp_warmuptime 36000");
+	ServerCommand("mp_weapons_allow_map_placed 1");
+	ServerCommand("mp_weapons_allow_zeus 1");
+	ServerCommand("mp_win_panel_display_time 15");
+	ServerCommand("spec_freeze_time 5.0");
+	ServerCommand("spec_freeze_panel_extended_time 0");
+	ServerCommand("sv_accelerate 5.5");
+	ServerCommand("sv_stopspeed 80");
+	ServerCommand("sv_allow_votes 0");
+	ServerCommand("sv_allow_wait_command 0");
+	ServerCommand("sv_alltalk 1");
+	ServerCommand("sv_alternateticks 0");
+	ServerCommand("sv_cheats 0");
+	ServerCommand("sv_clockcorrection_msecs 15");
+	ServerCommand("sv_consistency 0");
+	ServerCommand("sv_contact 0");
+	ServerCommand("sv_damage_print_enable 0");
+	ServerCommand("sv_dc_friends_reqd 0");
+	ServerCommand("sv_deadtalk 1");
+	ServerCommand("sv_forcepreload 0");
+	ServerCommand("sv_friction 5.2");
+	ServerCommand("sv_full_alltalk 0");
+	ServerCommand("sv_gameinstructor_disable 1");
+	ServerCommand("sv_ignoregrenaderadio 0");
+	ServerCommand("sv_kick_players_with_cooldown 0");
+	ServerCommand("sv_kick_ban_duration 0 ");
+	ServerCommand("sv_lan 0");
+	ServerCommand("sv_log_onefile 0");
+	ServerCommand("sv_logbans 1");
+	ServerCommand("sv_logecho 1");
+	ServerCommand("sv_logfile 1");
+	ServerCommand("sv_logflush 0");
+	ServerCommand("sv_logsdir logfiles");
+	ServerCommand("sv_maxrate 0");
+	ServerCommand("sv_mincmdrate 30");
+	ServerCommand("sv_minrate 20000");
+	ServerCommand("sv_competitive_minspec 1");
+	ServerCommand("sv_competitive_official_5v5 1");
+	ServerCommand("sv_pausable 1");
+	ServerCommand("sv_pure 1");
+	ServerCommand("sv_pure_kick_clients 1");
+	ServerCommand("sv_pure_trace 0");
+	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
+	ServerCommand("sv_steamgroup_exclusive 0");
+	ServerCommand("sv_voiceenable 1");
+	ServerCommand("mp_restartgame 1");
+	ServerCommand("mp_warmup_start");
+	
+	return Plugin_Handled;
+}
+
+public Action ConfigRetake(int client, int cfg){
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
