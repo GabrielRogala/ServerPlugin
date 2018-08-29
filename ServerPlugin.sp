@@ -5,6 +5,11 @@
 #define PLUGIN_AUTHOR "KawalChama"
 #define PLUGIN_VERSION "1.00"
 
+#define NONE 0
+#define SPEC 1
+#define TEAM1 2
+#define TEAM2 3
+
 #include <sourcemod>
 #include <sdktools>
 #include <cstrike>
@@ -66,16 +71,17 @@ char MenuOptions[][][32] = {
 
 // match
 MatchRoundType CurrentRoundType;
+//int WinningTeam;
 int Damage[MAXPLAYERS + 1][MAXPLAYERS + 1];
 int Hits[MAXPLAYERS + 1][MAXPLAYERS + 1];
 char CaptainID_CT[40];
 char CaptainID_T[40];
 char CaptainName_T[64];
 char CaptainName_CT[64];
-int TotalPauses_CT;
-int TotalPauses_T;
-int MaxPauses_CT;
-int MaxPauses_T;
+//int TotalPauses_CT;
+//int TotalPauses_T;
+//int MaxPauses_CT;
+//int MaxPauses_T;
 bool DemoRecorded;
 int ReadyPlayers;
 char PlayersReadyList[MAXPLAYERS + 1][64];
@@ -188,7 +194,7 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 	if (action == MenuAction_Select)
 	{
 		char info[32];
-		bool found = menu.GetItem(param2, info, sizeof(info));
+		//bool found = menu.GetItem(param2, info, sizeof(info));
 		//PrintToConsole(param1, "You selected item: %d (found? %d info: %s)", param2, found, info);
 		
 		if (StrEqual(info, MenuOptions[0][0]))
@@ -263,9 +269,30 @@ public Action CMD_ServerMenu(int client, int args){
 	Menu_ServerMenu(client, -1);
 }
 
+public Action CMD_Stay(int client, int args){
+			
+	PrintToChat(client, "%s You can't use this command.", PREFIX_PLUGIN);
+	return Plugin_Handled;
+}
 
-public Action CMD_Stay(int client, int args){}
-public Action CMD_Switch(int client, int args){}
+public Action CMD_Switch(int client, int args){
+	
+	for (int i = 1; i <= MaxClients; i++){
+		if(IsClientInGame(i)){
+			switch (GetClientTeam(i)){
+				case TEAM1 : ChangeClientTeam(i, TEAM2);
+				case TEAM2 : ChangeClientTeam(i, TEAM1);
+			}
+		}
+	}
+	
+	int ts = GetTeamScore(TEAM1);
+	SetTeamScore(TEAM1, GetTeamScore(TEAM2));
+	SetTeamScore(TEAM2, ts);
+
+	return Plugin_Handled;
+}
+
 public Action CMD_Unpause(int client, int args){}
 public Action CMD_Pause(int client, int args){}
 
@@ -445,6 +472,60 @@ public void RunTreningMode(){
 /*
 * METHODS
 */
+
+public void SetCapitan(int client){
+	int clientTeam = GetClientTeam(client);
+	if(clientTeam == CS_TEAM_T ){
+		GetClientAuthId(client, AuthId_Steam2, CaptainID_T, 32, false);
+		GetClientName(client, CaptainName_T, 64);
+		PrintToChatAll("%s T's Captain: %s", PREFIX_PLUGIN, CaptainName_T);
+	}else if(clientTeam == CS_TEAM_CT ){
+		GetClientAuthId(client, AuthId_Steam2, CaptainID_CT, 32, false);
+		GetClientName(client, CaptainName_CT, 64);
+		PrintToChatAll("%s CT's Captain: %s", PREFIX_PLUGIN, CaptainName_CT);
+	}
+	
+}
+
+public bool CaptainCheck(int client){
+	
+	char clinetId[32];
+	GetClientAuthId(client, AuthId_Steam2, clinetId, 32, false);
+	int clientTeam = GetClientTeam(client);
+	
+	if(clientTeam == CS_TEAM_T ){
+		
+		if(StrEqual(clinetId, CaptainID_T, false)){
+			return true;
+		}else{
+			PrintToChatAll("%s T's Captain: %s", PREFIX_PLUGIN, CaptainName_T);
+			return false;
+		}
+		
+	}else if(clientTeam == CS_TEAM_CT ){
+		
+		if(StrEqual(clinetId, CaptainID_CT, false)){
+			return true;
+		}else{
+			PrintToChatAll("%s CT's Captain: %s", PREFIX_PLUGIN, CaptainName_CT);
+			return false;
+		}
+		
+	}
+		
+	return false;
+}
+
+public void SwapPlayer(int client, int target)
+{
+	switch (GetClientTeam(target))
+	{
+		case TEAM1 : ChangeClientTeam(client, TEAM2);
+		case TEAM2 : ChangeClientTeam(client, TEAM1);
+		default:
+		return;
+	}
+}
 
 public void StartRecordDemo(int client){
 	if(!DemoRecorded){
