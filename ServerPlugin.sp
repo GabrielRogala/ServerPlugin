@@ -10,6 +10,8 @@
 #define TEAM1 2
 #define TEAM2 3
 
+#define ABS(x) ( x<0 ? x * (-1) : x) 
+
 #include <sourcemod>
 #include <sdktools>
 #include <cstrike>
@@ -58,12 +60,44 @@ char MenuOptions[][][32] = {
 	{"dmg","Damage info >"},
 		{"ton","Turn ON"},
 		{"tof","Turn OFF"},
-	{"dmo","Demo"},
+	{"dmo","Demo >"},
 		{"src","Start recording"},
 		{"spr","Stop recording"},
-	{"",""}
+	{"cmp","Change map >"}
 };
 
+#define MAPLISTSIZE 9
+char MapList[][32] = {
+	"de_cache",
+	"de_canals",
+	"de_cbble",
+	"de_dust2",
+	"de_inferno",
+	"de_mirage",
+	"de_nuke",
+	"de_overpass",
+	"de_train",
+	//"ar_baggage",
+	//"ar_dizzy",
+	//"ar_monastery",
+	//"ar_shoots",
+	//"cs_agency",
+	//"cs_assault",
+	//"cs_insertion",
+	//"cs_italy",
+	//"cs_office",
+	//"de_austria",
+	//"de_bank",
+	//"de_lake",
+	//"de_safehouse",
+	//"de_shipped",
+	//"de_shortdust",
+	//"de_shortnuke",
+	//"de_stmarc",
+	//"de_sugarcane",
+	//"gd_rialto",
+	//"training1"
+};
 
 // default
 
@@ -71,7 +105,11 @@ char MenuOptions[][][32] = {
 
 // match
 MatchRoundType CurrentRoundType;
-//int WinningTeam;
+int WinningTeam;
+int PlayerList_CT[MAXPLAYERS + 1];
+int PlayerList_T[MAXPLAYERS + 1];
+int PlayerCount_CT;
+int PlayerCount_T;
 int Damage[MAXPLAYERS + 1][MAXPLAYERS + 1];
 int Hits[MAXPLAYERS + 1][MAXPLAYERS + 1];
 char CaptainID_CT[40];
@@ -87,6 +125,8 @@ bool UnpausesConfirm_CT;
 bool DemoRecorded;
 int ReadyPlayers;
 char PlayersReadyList[MAXPLAYERS + 1][64];
+bool TvEnable;
+int RequiredReadyPlayers;
 // trening
 
 
@@ -120,9 +160,13 @@ public void OnPluginStart(){
 	RegConsoleCmd("sm_pause", CMD_Pause, "");
 	RegConsoleCmd("sm_ready", CMD_Ready, "");
 	RegConsoleCmd("sm_unready", CMD_Unready, "");
+	RegConsoleCmd("sm_map", CMD_ChangeMap, "");
 	
 	RegAdminCmd("sm_smenu", CMD_ServerMenu, ADMFLAG_GENERIC, "");
 	RegAdminCmd("sm_scramble", CMD_Scramble, ADMFLAG_ROOT);
+	
+	TvEnable = false;
+	RequiredReadyPlayers = 10;
 }
 
 public void OnMapStart(){
@@ -135,9 +179,15 @@ public void OnMapStart(){
 	}
 	DemoRecorded = false;
 	ReadyPlayers = 0;
-	ServerCommand("tv_enable 1");
-	//ServerCommand("changelevel \"%s\"",CurrentMapName);
 	
+	if(!TvEnable){
+		TvEnable = true;
+		ServerCommand("tv_enable 1");
+		ServerCommand("changelevel \"%s\"",CurrentMapName);
+	}else{
+		TvEnable = false;
+	}
+		
 	InitGame();
 }
 
@@ -147,7 +197,7 @@ public void InitGame(){
 	} else if(SERVER_MODE == Retake){
 		LoadMapSpawns(CurrentMapName);
 	} else if(SERVER_MODE == Matchmaking){
-
+		ConfigWarmup(0,0);
 	} else if(SERVER_MODE == Trening){
 
 	}
@@ -157,10 +207,6 @@ public void InitGame(){
 /*
 * MENU
 */
-
-public Action Menu_ServerMenu(int client, int args){
-	OpenMenu_ServerMenu(client, -1);
-}
 
 public void OpenMenu_ServerMenu(int client , int level){
 	Menu menu = new Menu(MenuHandler_ServerMenu);
@@ -189,6 +235,11 @@ public void OpenMenu_ServerMenu(int client , int level){
 		menu.SetTitle(MenuOptions[16][1]);
 		menu.AddItem(MenuOptions[17][0], MenuOptions[17][1]);
 		menu.AddItem(MenuOptions[18][0], MenuOptions[18][1]);
+	} else if(level == 19 ){
+		menu.SetTitle(MenuOptions[19][1]);
+		for (int i = 0; i < MAPLISTSIZE; i++){
+			menu.AddItem(MapList[i], MapList[i]);
+		}
 	} else {
 		menu.SetTitle("Server menu");
 		menu.AddItem(MenuOptions[0][0], MenuOptions[0][1]);
@@ -273,6 +324,18 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 		else if (StrEqual(info, MenuOptions[18][0]))
 		{
 			StopRecordDemo(param1);
+		} 
+		else if (StrEqual(info, MenuOptions[19][0]))
+		{
+			OpenMenu_ServerMenu(param1, 19);
+		} else {
+			for (int i = 0; i < MAPLISTSIZE; i++){
+				if(StrEqual(info, MapList[i])){
+					TvEnable = true;
+					ServerCommand("tv_enable 1");
+					ServerCommand("changelevel \"%s\"",MapList[i]);
+				}
+			}
 		}
 		
 	}
@@ -292,17 +355,98 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 * Commands
 */
 
+public Action CMD_ChangeMap(int client, int args){
+	OpenMenu_ServerMenu(client, 19);
+}
+
 public Action CMD_ServerMenu(int client, int args){
-	Menu_ServerMenu(client, -1);
+	OpenMenu_ServerMenu(client, -1);
 }
 
 public Action CMD_Stay(int client, int args){
-			
-	PrintToChat(client, "%s You can't use this command.", PREFIX_PLUGIN);
+	// round
+	if(CurrentRoundType != KnifeRound){ 
+		return Plugin_Handled;
+	}
+	
+	// team
+	if(WinningTeam != GetClientTeam(client)){ 
+		
+		if (WinningTeam == CS_TEAM_T)
+		{
+			PrintToChatAll("%s Captain %s chose, !stay or !switch",PREFIX_PLUGIN ,CaptainName_T);
+			return Plugin_Handled;
+		}
+		else if (WinningTeam == CS_TEAM_CT)
+		{
+			PrintToChatAll("%s Captain %s, !stay or !switch",PREFIX_PLUGIN ,CaptainName_CT);
+			return Plugin_Handled;
+		}
+	}
+	
+	// capitan
+	char clientID[32];
+	GetClientAuthId(client, AuthId_Steam2, clientID, 32, false);		
+
+		
+	if (WinningTeam == CS_TEAM_T){
+		if(StrEqual(clientID,CaptainID_T)){
+			PrintToChatAll("%s Captain %s chose, !stay or !switch",PREFIX_PLUGIN ,CaptainName_T);
+			return Plugin_Handled;
+		}
+		
+	} 
+	else if (WinningTeam == CS_TEAM_CT){
+		if(StrEqual(clientID,CaptainID_CT)){
+			PrintToChatAll("%s Captain %s, !stay or !switch",PREFIX_PLUGIN ,CaptainName_CT);
+			return Plugin_Handled;
+		}
+	}
+	
+	StartMatchmakingRound();
+
 	return Plugin_Handled;
 }
 
 public Action CMD_Switch(int client, int args){
+	// round
+	if(CurrentRoundType != KnifeRound){ 
+		return Plugin_Handled;
+	}
+	
+	// team
+	if(WinningTeam != GetClientTeam(client)){ 
+		
+		if (WinningTeam == CS_TEAM_T)
+		{
+			PrintToChatAll("%s Captain %s chose, !stay or !switch",PREFIX_PLUGIN ,CaptainName_T);
+			return Plugin_Handled;
+		}
+		else if (WinningTeam == CS_TEAM_CT)
+		{
+			PrintToChatAll("%s Captain %s, !stay or !switch",PREFIX_PLUGIN ,CaptainName_CT);
+			return Plugin_Handled;
+		}
+	}
+	
+	// capitan
+	char clientID[32];
+	GetClientAuthId(client, AuthId_Steam2, clientID, 32, false);
+	
+	if (WinningTeam == CS_TEAM_T){
+		if(StrEqual(clientID,CaptainID_T)){
+			PrintToChatAll("%s Captain %s chose, !stay or !switch",PREFIX_PLUGIN ,CaptainName_T);
+			return Plugin_Handled;
+		}
+		
+	} 
+	else if (WinningTeam == CS_TEAM_CT){
+		if(StrEqual(clientID,CaptainID_CT)){
+			PrintToChatAll("%s Captain %s, !stay or !switch",PREFIX_PLUGIN ,CaptainName_CT);
+			return Plugin_Handled;
+		}
+	}
+
 	
 	for (int i = 1; i <= MaxClients; i++){
 		if(IsClientInGame(i)){
@@ -316,6 +460,8 @@ public Action CMD_Switch(int client, int args){
 	int ts = GetTeamScore(TEAM1);
 	SetTeamScore(TEAM1, GetTeamScore(TEAM2));
 	SetTeamScore(TEAM2, ts);
+	
+	StartMatchmakingRound();
 
 	return Plugin_Handled;
 }
@@ -402,6 +548,10 @@ public Action CMD_Ready(int client, int args){
 		GetClientName(client, PlayersReadyList[client], 64);
 		ReadyPlayers++;
 	}
+	
+	if(ReadyPlayers >= RequiredReadyPlayers){
+		StartKnifeRound();
+	}
 }
 
 public Action CMD_Unready(int client, int args){
@@ -414,7 +564,11 @@ public Action CMD_Unready(int client, int args){
 	}
 }
 
-public Action CMD_Scramble(int client, int args){}
+public Action CMD_Scramble(int client, int args){
+	if(CurrentRoundType == WarmupRound){
+		Scramble();
+	}
+}
 
 /*
 * EVENTS
@@ -558,13 +712,25 @@ public void RoundEndHandler_ServerModeRetake(Event event){
 public void RoundEndHandler_ServerModeMatchmaking(Event event){
 	
 	if(CurrentRoundType == WarmupRound){
-
+		return;
 	} else if(CurrentRoundType == KnifeRound){
-
+		WinningTeam = event.GetInt("winner");
+		ServerCommand("mp_pause_match");
+		if (WinningTeam == CS_TEAM_T)
+		{
+			PrintToChatAll("%s Terrorist Team wins the round!");
+			PrintToChatAll("%s Captain %s chose, !stay or !switch",PREFIX_PLUGIN ,CaptainName_T);
+		}
+		else if (WinningTeam == CS_TEAM_CT)
+		{
+			PrintToChatAll("%s Counter Terrorist Team wins the round!");
+			PrintToChatAll("%s Captain %s, !stay or !switch",PREFIX_PLUGIN ,CaptainName_CT);
+		}
+		return;
 	} else if(CurrentRoundType == MatchRound){
-
+		// print statistic to all player TODO
 	}
-	
+
 }
 
 public void RoundEndHandler_ServerModeTrening(Event event){
@@ -598,6 +764,123 @@ public void SetRandomGrenade(int client){}
 public void SetRandomHP(int client){}
 public void SetPlayerPosition(int client){}
 public void	SetRandomBomb(){}
+
+
+public void StartKnifeRound(){
+	PlayerCount_CT = 0;
+	PlayerCount_T = 0;
+	ClearArray(PlayerList_CT);
+	ClearArray(PlayerList_T);
+	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientValid(i))
+		{
+			if (GetClientTeam(i) == CS_TEAM_CT)	{
+				PlayerList_CT[PlayerCount_CT++] = i;
+			}
+			else if (GetClientTeam(i) == CS_TEAM_T) {
+				PlayerList_T[PlayerCount_T++] = i;
+			}
+		}
+	}
+	
+	if(ABS(PlayerCount_CT-PlayerCount_T)>1){
+		AutoTeamBalance();
+	}
+	
+	SetCapitan(PlayerList_CT[GetRandomInt(0,PlayerCount_CT-1)]);
+	SetCapitan(PlayerList_T[GetRandomInt(0,PlayerCount_T-1)]);
+	
+	ConfigKnifeRound(0, 0);
+}
+
+public void StartMatchmakingRound(){
+	
+	ConfigMatch(0, 0);
+}
+
+public void AutoTeamBalance(){
+	int playerCountToMove = ABS(PlayerCount_T - PlayerCount_CT) / 2;
+	for (int i = 0; i < playerCountToMove; i++){
+		if(PlayerCount_T > PlayerCount_CT){
+			int randomPlayerId = GetRandomInt(0,PlayerCount_T-1);
+			PlayerList_CT[PlayerCount_CT++] = PlayerList_T[randomPlayerId];
+			SwapPlayer(PlayerList_T[randomPlayerId], CS_TEAM_CT);
+			PlayerList_T[randomPlayerId] = PlayerList_T[--PlayerCount_T];
+		}else{
+			int randomPlayerId = GetRandomInt(0,PlayerCount_CT-1);
+			PlayerList_T[PlayerCount_T++] = PlayerList_CT[randomPlayerId];
+			SwapPlayer(PlayerList_CT[randomPlayerId], CS_TEAM_T);
+			PlayerList_CT[randomPlayerId] = PlayerList_CT[--PlayerCount_CT];
+		}
+	}
+}
+
+public void Scramble(){
+	int playersCount = 0;
+	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientValid(i))
+		{
+			if (GetClientTeam(i) == CS_TEAM_CT)	{
+				playersCount++;
+			}
+			else if (GetClientTeam(i) == CS_TEAM_T) {
+				playersCount++;
+			}
+		}
+	}
+/*	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientValid(i))
+		{
+			if (GetClientTeam(i) == CS_TEAM_CT)	{
+				PlayerList_CT[PlayerCount_CT++] = i;
+			}
+			else if (GetClientTeam(i) == CS_TEAM_T) {
+				PlayerList_T[PlayerCount_T++] = i;
+			}
+		}
+	}
+
+*/
+	
+	PlayerCount_CT = 0;
+	PlayerCount_T = 0;
+	
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientValid(i))
+		{
+			int randomTeamId = GetRandomInt(CS_TEAM_CT, CS_TEAM_T);
+			
+			if(PlayerCount_T == playersCount/2 || PlayerCount_CT == playersCount/2){
+				if(PlayerCount_T > PlayerCount_CT){
+					randomTeamId = CS_TEAM_CT;
+				}else{
+					randomTeamId = CS_TEAM_T;
+				}
+			}
+			
+			if (randomTeamId == CS_TEAM_CT)	{
+				PlayerList_CT[PlayerCount_CT++] = i;
+				if(GetClientTeam(i) == CS_TEAM_T){
+					SwapPlayer(i, randomTeamId);
+				}
+			}
+			else if (randomTeamId == CS_TEAM_T) {
+				PlayerList_T[PlayerCount_T++] = i;
+				if(GetClientTeam(i) == CS_TEAM_CT){
+					SwapPlayer(i, randomTeamId);
+				}
+			}
+		}
+	}
+	
+}
 
 public bool IsPaused(){
 	return GameRules_GetProp("m_bMatchWaitingForResume") != 0;
@@ -846,6 +1129,8 @@ public Action ConfigDefault(int client, int cfg){
 }
 
 public Action ConfigMatch(int client, int cfg){
+	
+	CurrentRoundType = MatchRound;
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("mp_give_player_c4 1");
@@ -975,6 +1260,7 @@ public Action ConfigMatch(int client, int cfg){
 }
 
 public Action ConfigWarmup(int client, int cfg){
+	CurrentRoundType = WarmupRound;
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -1102,6 +1388,7 @@ public Action ConfigWarmup(int client, int cfg){
 }
 
 public Action ConfigKnifeRound(int client, int cfg){
+	CurrentRoundType = KnifeRound;
 	ServerCommand("mp_unpause_match");
 	ServerCommand("mp_warmuptime 1");
 	ServerCommand("mp_ct_default_secondary none");
