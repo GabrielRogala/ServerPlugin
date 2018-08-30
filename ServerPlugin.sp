@@ -10,7 +10,7 @@
 #define TEAM1 2
 #define TEAM2 3
 
-#define ABS(x) ( x<0 ? x * (-1) : x) 
+#define ABS(%1) ((%1)>0 ? (%1) : -(%1)) 
 
 #include <sourcemod>
 #include <sdktools>
@@ -765,12 +765,15 @@ public void SetRandomHP(int client){}
 public void SetPlayerPosition(int client){}
 public void	SetRandomBomb(){}
 
-
 public void StartKnifeRound(){
+	
+	for (int i = 0; i < MaxClients; i++){
+		PlayerList_CT[i] = 0;
+		PlayerList_T[i] = 0;
+	}
+	
 	PlayerCount_CT = 0;
 	PlayerCount_T = 0;
-	ClearArray(PlayerList_CT);
-	ClearArray(PlayerList_T);
 	
 	for (int i = 1; i <= MaxClients; i++)
 	{
