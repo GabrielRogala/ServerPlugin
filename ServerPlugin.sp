@@ -10,6 +10,9 @@
 #define TEAM1 2
 #define TEAM2 3
 
+#define SITE_A 0
+#define SITE_B 1
+
 #define ABS(%1) ((%1)>0 ? (%1) : -(%1)) 
 
 #include <sourcemod>
@@ -102,6 +105,75 @@ char MapList[][32] = {
 // default
 
 // retake
+#define PRIMARY_SIZE 21
+#define SECONDARY_SIZE 7
+
+ char SecondaryWeapons[][] = {
+	"weapon_tec9", 
+	"weapon_fiveseven",
+	"weapon_glock", 
+	"weapon_usp_silencer", 
+	"weapon_p250",
+	"weapon_deagle", 
+	"weapon_cz75a",	
+	"weapon_elite"
+};
+
+ char PrimaryWeapons[][] = {
+ 	"",
+	"weapon_m4a1_silencer",
+	"weapon_m4a1",
+	"weapon_ak47",
+	"weapon_aug",
+	"weapon_awp",
+	"weapon_bizon",
+	"weapon_famas",
+	"weapon_gs3sg1",
+	"weapon_galilar",
+	"weapon_m249",
+	"weapon_mac10",
+	"weapon_mag7",
+	"weapon_mp7",
+	"weapon_mp9",
+	"weapon_negev",
+	"weapon_nova",
+	"weapon_scar20",
+	"weapon_sg556",
+	"weapon_ssg08",
+	"weapon_ump45",
+	"weapon_xm1014" 
+};
+
+int PlayersPrimaryWeapon[MAXPLAYERS + 1];
+int PlayersSecondaryWeapon[MAXPLAYERS + 1];
+int PlayersArmor[MAXPLAYERS + 1];
+int PlayersHealth[MAXPLAYERS + 1];
+int PlayersHelmet[MAXPLAYERS + 1];
+int PlayersDefKit[MAXPLAYERS + 1];
+char PlayersNade[MAXPLAYERS + 1][7];
+
+Database RetakesDB;
+
+#define MAX_SPAWN 64
+#define SPAWNS_INFO_COUNT 9
+float Spawns[MAX_SPAWN][SPAWNS_INFO_COUNT];
+
+float PlayerTypeCt = 3.0;
+float PlayerTypeT = 2.0;
+float PlayerTypeBomb = 1.0;
+
+int CounterCt;
+int	CounterT;
+int	CounterBomb;
+
+int PlayersCtSpawns[MAX_SPAWN];
+int PlayersTSpawns[MAX_SPAWN];
+int PlayersBombSpawns[MAX_SPAWN];
+
+int TPlayersList[MAXPLAYERS + 1];
+int Bomberman = -1;
+
+int Site;
 
 // match
 MatchRoundType CurrentRoundType;
@@ -170,6 +242,7 @@ public void OnPluginStart(){
 }
 
 public void OnMapStart(){
+	RetakesDB = DataBaseConnect();
 	//Map String to LowerCase
 	GetCurrentMap(CurrentMapName, sizeof(CurrentMapName));
 	int len = strlen(CurrentMapName);
@@ -187,7 +260,7 @@ public void OnMapStart(){
 	}else{
 		TvEnable = false;
 	}
-		
+
 	InitGame();
 }
 
@@ -195,7 +268,7 @@ public void InitGame(){
 	if(SERVER_MODE == Default){	
 		
 	} else if(SERVER_MODE == Retake){
-		LoadMapSpawns(CurrentMapName);
+		LoadSpawns(CurrentMapName);
 	} else if(SERVER_MODE == Matchmaking){
 		ConfigWarmup(0,0);
 	} else if(SERVER_MODE == Trening){
@@ -247,6 +320,7 @@ public void OpenMenu_ServerMenu(int client , int level){
 		menu.AddItem(MenuOptions[12][0], MenuOptions[12][1]);
 		menu.AddItem(MenuOptions[13][0], MenuOptions[13][1]);
 		menu.AddItem(MenuOptions[16][0], MenuOptions[16][1]);
+		menu.AddItem(MenuOptions[19][0], MenuOptions[19][1]);
 	}		
 
 	menu.ExitButton = true;
@@ -634,13 +708,13 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast){
 	if(SERVER_MODE == Default){	
-		
+		RoundStartHandler_ServerModeDefault(event);
 	} else if(SERVER_MODE == Retake){
-
+		RoundStartHandler_ServerModeRetake(event);
 	} else if(SERVER_MODE == Matchmaking){
-
+		RoundStartHandler_ServerModeMatchmaking(event);
 	} else if(SERVER_MODE == Trening){
-
+		RoundStartHandler_ServerModeTrening(event);
 	}
 
 	return Plugin_Handled;
@@ -649,13 +723,13 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast){
 
 	if(SERVER_MODE == Default){	
-		
+		RoundEndHandler_ServerModeDefault(event);
 	} else if(SERVER_MODE == Retake){
-
+		RoundEndHandler_ServerModeRetake(event);
 	} else if(SERVER_MODE == Matchmaking){
-
+		RoundEndHandler_ServerModeMatchmaking(event);
 	} else if(SERVER_MODE == Trening){
-
+		RoundEndHandler_ServerModeTrening(event);
 	}
 	
 	return Plugin_Handled;
@@ -671,16 +745,13 @@ public void RoundStartHandler_ServerModeDefault(Event event){
 }
 
 public void RoundStartHandler_ServerModeRetake(Event event){
+	Site = GetRandomInt(0, 1);
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		//Client_RemoveAllWeapons(i);
 		SetRandomWeapon(i);
-		SetRandomGrenade(i);
-		SetRandomHP(i);
-		
-		SetPlayerPosition(i);
+		GiveWeapons(i);
 	}
-	
+	SetPlayersPosition(Site);
 	SetRandomBomb();
 }
 
@@ -744,6 +815,11 @@ public void RunDefaultMode(){
 
 public void RunRetakeMode(){
 	SERVER_MODE = Retake;
+	ServerCommand("tv_enable 1");
+	ServerCommand("changelevel \"%s\"",CurrentMapName);
+	ConfigRetake(0, 0);
+	PrintToChatAll("%s Start retake mod", PREFIX_PLUGIN);
+	LoadSpawns(CurrentMapName);
 }
 
 public void RunMatchMode(){
@@ -752,18 +828,246 @@ public void RunMatchMode(){
 
 public void RunTreningMode(){
 	SERVER_MODE = Trening;
+	LoadSpawns(CurrentMapName);
 }
 
 /*
 * METHODS
 */
 
-public void LoadMapSpawns(char[] mapName){}
-public void SetRandomWeapon(int client){}
+public void GiveWeapons(int client){
+	if (!IsClientValid(client)) {
+        return;
+    }
+
+    RemoveAllWeapons(client);
+	
+	/*
+	if(Bomberman == client){
+		GivePlayerItem(client, "weapon_c4");
+	}
+	*/
+
+    if (GetClientTeam(client) == CS_TEAM_T)
+        GivePlayerItem(client, "weapon_knife_t");
+    else
+        GivePlayerItem(client, "weapon_knife");
+
+    GivePlayerItem(client, PrimaryWeapons[PlayersPrimaryWeapon[client]]);
+    GivePlayerItem(client, SecondaryWeapons[PlayersSecondaryWeapon[client]]);
+		
+    SetEntProp(client, Prop_Send, "m_ArmorValue", PlayersArmor[client], 1);
+    SetEntityHealth(client, PlayersHealth[client]);
+    SetEntData(client, FindSendPropInfo("CCSPlayer", "m_bHasHelmet"), PlayersHelmet[client]);
+
+    if (GetClientTeam(client) == CS_TEAM_CT) {
+        SetEntProp(client, Prop_Send, "m_bHasDefuser", PlayersDefKit[client]);
+    }
+
+    int len = strlen(PlayersNade[client]);
+    for (int i = 0; i < len; i++) {
+        char c = PlayersNade[client][i];
+        char weapon[32];
+        switch(c) {
+            case 'h': weapon = "weapon_hegrenade";
+            case 'f': weapon = "weapon_flashbang";
+            case 'm': weapon = "weapon_molotov";
+            case 'i': weapon = "weapon_incgrenade";
+            case 's': weapon = "weapon_smokegrenade";
+            case 'd': weapon = "weapon_decoy";
+        }
+        GivePlayerItem(client, weapon);
+    }
+    
+}
+
+public void SetRandomWeapon(int client){
+		PlayersPrimaryWeapon[client] = GetRandomInt(0, PRIMARY_SIZE);
+		PlayersSecondaryWeapon[client] = GetRandomInt(0, SECONDARY_SIZE);
+		PlayersArmor[client] = GetRandomInt(0, 100);
+		PlayersHealth[client] = GetRandomInt(1, 100);
+		PlayersHelmet[client] = GetRandomInt(0, 1);
+		PlayersDefKit[client] = GetRandomInt(0, 1);
+		PlayersNade[client][0] = ((GetRandomInt(0, 4) == 1) ? 'i' : ' '); // 20%
+		PlayersNade[client][1] = ((GetRandomInt(0, 1) == 1) ? 'f' : ' '); // 50%
+		PlayersNade[client][2] = ((GetRandomInt(0, 9) == 1) ? 'f' : ' '); // 10%
+		PlayersNade[client][3] = ((GetRandomInt(0, 3) == 1) ? 's' : ' '); // 50%
+		PlayersNade[client][4] = ((GetRandomInt(0, 2) == 1) ? 'h' : ' '); // 32%
+		PlayersNade[client][5] = ((GetRandomInt(0, 4) == 1) ? 'm' : ' '); // 20%
+}
+
+public void RemoveAllWeapons(int client) {
+    for(int i = 0; i < 4; i++) {
+        int ent = GetPlayerWeaponSlot(client, i);
+
+        if(ent != -1) {
+            RemovePlayerItem(client, ent);
+            RemoveEdict(ent);
+        }
+    }
+}
+
 public void SetRandomGrenade(int client){}
 public void SetRandomHP(int client){}
 public void SetPlayerPosition(int client){}
 public void	SetRandomBomb(){}
+
+Database DataBaseConnect(){
+	char error[255];
+	Database db = SQL_Connect("retakes", true, error, sizeof(error));
+		 
+	if (db == null)
+	{
+		LogMessage("Could not connect: %s", error);
+	} 
+	
+	return db;
+}
+
+public void LoadSpawns(char[] mapName){
+	char query[255];
+	Format(query, sizeof(query), "SELECT id, type, site, posx, posy, posz, angx FROM spawns WHERE map = '%s'", mapName);
+	
+	PrintToChatAll("Map name %s", mapName);
+	
+	DBResultSet result = SQL_Query(RetakesDB, query);
+	if (result == null)
+	{
+		char error[255];
+		SQL_GetError(RetakesDB, error, sizeof(error));
+		PrintToChatAll("Failed to query (error: %s)", error);
+	} 
+	else 
+	{
+		int spawnCounter = 0;
+		while (SQL_FetchRow(result))
+		{
+		
+			Spawns[spawnCounter][0] = float(SQL_FetchInt(result, 0)); // id
+			Spawns[spawnCounter][1] = float(SQL_FetchInt(result, 1)); // type
+			Spawns[spawnCounter][2] = float(SQL_FetchInt(result, 2)); // site
+			Spawns[spawnCounter][3] = SQL_FetchFloat(result, 3); // posx
+			Spawns[spawnCounter][4] = SQL_FetchFloat(result, 4); // posy
+			Spawns[spawnCounter][5] = SQL_FetchFloat(result, 5); // posz
+			Spawns[spawnCounter][6] = SQL_FetchFloat(result, 6); // angx
+			
+			
+			PrintToChatAll("[\x07DB\x01] \x06 Spawn: %f | %f | %f | %f %f %f | %f", Spawns[spawnCounter][0],
+																					Spawns[spawnCounter][1],
+																					Spawns[spawnCounter][2],
+																					Spawns[spawnCounter][3],
+																					Spawns[spawnCounter][4],
+																					Spawns[spawnCounter][5],
+																					Spawns[spawnCounter][6]);
+			
+			spawnCounter++;
+		}
+
+		delete result;
+	}
+	
+}
+
+public void SetPlayersPosition(int site){
+	
+	PrintToChatAll("SET PLAYER POSITION");
+	
+	CounterCt = 0;
+	CounterT = 0;
+	CounterBomb = 0;
+	
+	for (int i = 0; i < MAX_SPAWN;i++){
+		
+		if(site == Spawns[i][2]){
+			if(Spawns[i][1] == PlayerTypeCt ){
+				PlayersCtSpawns[CounterCt++] = i;
+			}else if(Spawns[i][1] == PlayerTypeT){
+				PlayersCtSpawns[CounterT++] = i;
+			}else if(Spawns[i][1] == PlayerTypeBomb){
+				PlayersCtSpawns[CounterBomb++] = i;
+			}
+		}
+	}
+	
+	for (int i = 1; i < MAXPLAYERS + 1; i++){
+		if (IsClientValid(i))
+		{
+			
+			int spawnIndex = 0;
+			
+			if (GetClientTeam(i) == CS_TEAM_CT){
+				spawnIndex = GetRandomSpawn(PlayerTypeCt,site);
+			}else if(GetClientTeam(i) == CS_TEAM_T){
+				
+				if(Bomberman == i){
+					spawnIndex = GetRandomSpawn(PlayerTypeBomb,site);
+				}else{
+					spawnIndex = GetRandomSpawn(PlayerTypeT,site);
+				}
+				
+			}
+			
+			float loc[] =  { 0.0, 0.0, 0.0 };
+			float ang[] =  { 0.0, 0.0, 0.0 };
+			
+			loc[0] = Spawns[spawnIndex][3]; 
+			loc[1] = Spawns[spawnIndex][4]; 
+			loc[2] = Spawns[spawnIndex][5]; 
+			
+			ang[1] = Spawns[spawnIndex][6];
+			
+			TeleportEntity(i, loc, ang,	NULL_VECTOR);
+			
+			PrintToChat(i,"[\x07DB\x01] \x06 Player spawn: %f | %f | %f | %f %f %f | %f", Spawns[spawnIndex][0],
+																		Spawns[spawnIndex][1],
+																		Spawns[spawnIndex][2],
+																		Spawns[spawnIndex][3],
+																		Spawns[spawnIndex][4],
+																		Spawns[spawnIndex][5],
+																		Spawns[spawnIndex][6]);
+		}
+	}
+
+}
+
+
+public int GetRandomSpawn(float type, int site){
+	int spawnIndex = 0;
+	int result = -1;
+	
+	if(type == PlayerTypeCt){
+		PrintToChatAll("SPAWN CT : %i ",CounterCt);
+		
+		spawnIndex = GetRandomInt(0, CounterCt-1);
+		result = PlayersCtSpawns[spawnIndex];
+		PrintToChatAll("SPAWN ct get %i ",spawnIndex);
+		PlayersCtSpawns[spawnIndex] = PlayersCtSpawns[CounterCt - 1];
+		CounterCt--;	
+	}else if(type == PlayerTypeT){
+		PrintToChatAll("SPAWN T : %i ",CounterT);
+		
+		spawnIndex = GetRandomInt(0, CounterT-1);
+		result = PlayersTSpawns[spawnIndex];
+		PrintToChatAll("SPAWN t get %i ",spawnIndex);
+		PlayersTSpawns[spawnIndex] = PlayersTSpawns[CounterT - 1];
+		CounterT--;
+	}else if(type == PlayerTypeBomb){
+		PrintToChatAll("SPAWN B : %i ",CounterBomb);
+		
+		spawnIndex = GetRandomInt(0, CounterBomb-1);
+		result = PlayersBombSpawns[spawnIndex];
+		PrintToChatAll("SPAWN B get %i ",spawnIndex);
+		PlayersBombSpawns[spawnIndex] = PlayersBombSpawns[CounterBomb - 1];
+		CounterBomb--;
+	}
+	
+	return result;
+}
+
+public int GetBomberman(int[] list, int size){
+	int tmp = GetRandomInt(0, size - 1);
+	return list[tmp];
+}
 
 public void StartKnifeRound(){
 	
@@ -1594,7 +1898,7 @@ public Action ConfigRetake(int client, int cfg){
 	ServerCommand("mp_match_can_clinch 1");
 	ServerCommand("mp_match_end_restart 1");
 	ServerCommand("mp_maxmoney 9999999");
-	ServerCommand("mp_maxrounds 5");
+	ServerCommand("mp_maxrounds 30");
 	ServerCommand("mp_molotovusedelay 0");
 	ServerCommand("mp_overtime_enable 1");
 	ServerCommand("mp_overtime_maxrounds 10");
@@ -1611,7 +1915,7 @@ public Action ConfigRetake(int client, int cfg){
 	ServerCommand("mp_teamcashawards 1");
 	ServerCommand("mp_timelimit 0");
 	ServerCommand("mp_tkpunish 0");
-	ServerCommand("mp_warmuptime 36000");
+	ServerCommand("mp_warmuptime 10");
 	ServerCommand("mp_weapons_allow_map_placed 1");
 	ServerCommand("mp_weapons_allow_zeus 1");
 	ServerCommand("mp_win_panel_display_time 15");
@@ -1656,6 +1960,13 @@ public Action ConfigRetake(int client, int cfg){
 	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
 	ServerCommand("sv_steamgroup_exclusive 0");
 	ServerCommand("sv_voiceenable 1");
+
+	ServerCommand("mp_startmoney 0");
+	ServerCommand("mp_afterroundmoney 0");
+	ServerCommand("mp_maxmoney 0");
+	ServerCommand("mp_buy_anywhere 0");
+	ServerCommand("mp_buytime 0");
+	
 	ServerCommand("mp_restartgame 1");
 	ServerCommand("mp_warmup_start");
 	
