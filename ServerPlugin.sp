@@ -102,6 +102,8 @@ char MapList[][32] = {
 	//"training1"
 };
 
+ConVar CV_dmgEnabled;
+bool DmgEnabled;
 // default
 
 // retake
@@ -237,8 +239,12 @@ public void OnPluginStart(){
 	RegAdminCmd("sm_smenu", CMD_ServerMenu, ADMFLAG_GENERIC, "");
 	RegAdminCmd("sm_scramble", CMD_Scramble, ADMFLAG_ROOT);
 	
+	RegAdminCmd("sm_dmgenabled", CMD_DmgEnabled, ADMFLAG_GENERIC, "");
+	
 	TvEnable = false;
 	RequiredReadyPlayers = 10;
+	DmgEnabled = false;
+	CV_dmgEnabled = CreateConVar("dmg_enabled", "0", "Show damage information");
 }
 
 public void OnMapStart(){
@@ -644,6 +650,10 @@ public Action CMD_Scramble(int client, int args){
 	}
 }
 
+public Action CMD_DmgEnabled(int client, int args){
+	DmgEnabled = true;
+}
+
 /*
 * EVENTS
 */
@@ -664,6 +674,14 @@ public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcas
 		}
 		Damage[attacker][victim] += health_damage;
 		Hits[attacker][victim]++;
+	}
+	
+	if (DmgEnabled == true)
+	{
+		if (IsClientValid(attacker))
+		{
+			PrintHintText(attacker, "<font color='#0087af'><b><u>%N</u></b></font><br><font color='#87df87'>Damage: %d   </font><font color='#af0000'>Hits: %d</font>", victim,Damage[attacker][victim],Hits[attacker][victim]);
+		}
 	}
 }
 
