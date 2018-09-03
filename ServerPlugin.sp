@@ -102,7 +102,6 @@ char MapList[][32] = {
 	//"training1"
 };
 
-ConVar CV_dmgEnabled;
 bool DmgEnabled;
 // default
 
@@ -200,7 +199,7 @@ bool DemoRecorded;
 int ReadyPlayers;
 char PlayersReadyList[MAXPLAYERS + 1][64];
 bool TvEnable;
-int RequiredReadyPlayers;
+ConVar RequiredReadyPlayers = null;
 // trening
 
 
@@ -238,13 +237,13 @@ public void OnPluginStart(){
 	
 	RegAdminCmd("sm_smenu", CMD_ServerMenu, ADMFLAG_GENERIC, "");
 	RegAdminCmd("sm_scramble", CMD_Scramble, ADMFLAG_ROOT);
-	
 	RegAdminCmd("sm_dmgenabled", CMD_DmgEnabled, ADMFLAG_GENERIC, "");
 	
+	RequiredReadyPlayers = CreateConVar("smp_ready_players_needed", "10", "Set required ready players needed", _, true, 1.0, true, 10.0);
+	
 	TvEnable = false;
-	RequiredReadyPlayers = 10;
 	DmgEnabled = false;
-	CV_dmgEnabled = CreateConVar("dmg_enabled", "0", "Show damage information");
+	DemoRecorded = true;
 }
 
 public void OnMapStart(){
@@ -256,6 +255,7 @@ public void OnMapStart(){
 	{
 		CurrentMapName[i] = CharToLower(CurrentMapName[i]);
 	}
+	
 	DemoRecorded = false;
 	ReadyPlayers = 0;
 	
@@ -366,21 +366,29 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 			OpenMenu_ServerMenu(param1, 5);
 		}
 		else if (StrEqual(info, MenuOptions[6][0]))
-		{}
+		{
+			ConfigWarmup(param1, 0);
+		}
 		else if (StrEqual(info, MenuOptions[7][0]))
-		{}
+		{
+			ConfigKnifeRound(param1, 0);
+		}
 		else if (StrEqual(info, MenuOptions[8][0]))
-		{}
+		{
+			ConfigMatch(param1, 0);
+		}
 		else if (StrEqual(info, MenuOptions[9][0]))
 		{
 			CMD_Pause(param1, 0);
 		}
 		else if (StrEqual(info, MenuOptions[10][0]))
 		{
-			CMD_Unpause(param1, 0);
+			ServerCommand("mp_unpause_match");
 		}
 		else if (StrEqual(info, MenuOptions[11][0]))
-		{}
+		{
+
+		}
 		else if (StrEqual(info, MenuOptions[12][0]))
 		{
 			CMD_Scramble(param1, 0);
@@ -390,9 +398,13 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 			OpenMenu_ServerMenu(param1, 13);
 		}
 		else if (StrEqual(info, MenuOptions[14][0]))
-		{}
+		{
+			ServerCommand("sm_dmgenabled 1");
+		}
 		else if (StrEqual(info, MenuOptions[15][0]))
-		{}
+		{
+			ServerCommand("sm_dmgenabled 0");
+		}
 		else if (StrEqual(info, MenuOptions[16][0]))
 		{
 			OpenMenu_ServerMenu(param1, 16);
@@ -482,7 +494,7 @@ public Action CMD_Stay(int client, int args){
 			return Plugin_Handled;
 		}
 	}
-	
+	ServerCommand("mp_unpause_match");
 	StartMatchmakingRound();
 
 	return Plugin_Handled;
@@ -541,6 +553,7 @@ public Action CMD_Switch(int client, int args){
 	SetTeamScore(TEAM1, GetTeamScore(TEAM2));
 	SetTeamScore(TEAM2, ts);
 	
+	ServerCommand("mp_unpause_match");
 	StartMatchmakingRound();
 
 	return Plugin_Handled;
@@ -651,7 +664,13 @@ public Action CMD_Scramble(int client, int args){
 }
 
 public Action CMD_DmgEnabled(int client, int args){
-	DmgEnabled = true;
+	char arg[5];
+	GetCmdArg(1, arg, sizeof(arg));
+	if(arg[0] == '1'){
+		DmgEnabled = true;
+	}else{
+		DmgEnabled = false;
+	}
 }
 
 /*
@@ -664,7 +683,7 @@ public Action Event_PlayerHurt(Event event, const char[] name, bool dontBroadcas
 	bool validAttacker = IsClientValid(attacker);
 	bool validVictim = IsClientValid(victim);
 	
-	if (validAttacker && validVictim)
+	//if (validAttacker && validVictim)
 	{
 		int client_health = GetClientHealth(victim);
 		int health_damage = event.GetInt("dmg_health");
@@ -770,7 +789,6 @@ public void RoundStartHandler_ServerModeRetake(Event event){
 		GiveWeapons(i);
 	}
 	SetPlayersPosition(Site);
-	SetRandomBomb();
 }
 
 public void RoundStartHandler_ServerModeMatchmaking(Event event){
@@ -805,14 +823,15 @@ public void RoundEndHandler_ServerModeMatchmaking(Event event){
 	} else if(CurrentRoundType == KnifeRound){
 		WinningTeam = event.GetInt("winner");
 		ServerCommand("mp_pause_match");
+		PrintToChatAll("%s %i Team wins the round!",PREFIX_PLUGIN,WinningTeam);
 		if (WinningTeam == CS_TEAM_T)
 		{
-			PrintToChatAll("%s Terrorist Team wins the round!");
+			PrintToChatAll("%s Terrorist Team wins the round!",PREFIX_PLUGIN);
 			PrintToChatAll("%s Captain %s chose, !stay or !switch",PREFIX_PLUGIN ,CaptainName_T);
 		}
 		else if (WinningTeam == CS_TEAM_CT)
 		{
-			PrintToChatAll("%s Counter Terrorist Team wins the round!");
+			PrintToChatAll("%s Counter Terrorist Team wins the round!",PREFIX_PLUGIN);
 			PrintToChatAll("%s Captain %s, !stay or !switch",PREFIX_PLUGIN ,CaptainName_CT);
 		}
 		return;
@@ -842,6 +861,10 @@ public void RunRetakeMode(){
 
 public void RunMatchMode(){
 	SERVER_MODE = Matchmaking;
+	ServerCommand("tv_enable 1");
+	ServerCommand("changelevel \"%s\"",CurrentMapName);
+	ConfigRetake(0, 0);
+	PrintToChatAll("%s Start matchmaking mod", PREFIX_PLUGIN);
 }
 
 public void RunTreningMode(){
@@ -924,11 +947,6 @@ public void RemoveAllWeapons(int client) {
         }
     }
 }
-
-public void SetRandomGrenade(int client){}
-public void SetRandomHP(int client){}
-public void SetPlayerPosition(int client){}
-public void	SetRandomBomb(){}
 
 Database DataBaseConnect(){
 	char error[255];
@@ -1047,7 +1065,6 @@ public void SetPlayersPosition(int site){
 	}
 
 }
-
 
 public int GetRandomSpawn(float type, int site){
 	int spawnIndex = 0;
@@ -1266,10 +1283,10 @@ public void SwapPlayer(int client, int target){
 
 public void StartRecordDemo(int client){
 	if(!DemoRecorded){
-		DemoRecorded = true;
+		DemoRecorded = true;	
 		char time[64];
-		FormatTime(time, sizeof(time), "%F-%R");
-		Format(DemoFileName, sizeof(DemoFileName), "%s-%s",CurrentMapName, time);
+		FormatTime(time, sizeof(time), "%Y-%m-%d-%H-%M-%S");	
+		Format(DemoFileName, sizeof(DemoFileName), "%s_%s",CurrentMapName, time);
 		ServerCommand("tv_record \"%s\"",DemoFileName);
 		PrintToChat(client, "%s Start recording to file : %s.dem", PREFIX_PLUGIN, DemoFileName);
 	}else{
