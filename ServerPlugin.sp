@@ -32,7 +32,8 @@ enum ServerMode {
 	Default,
 	Retake,
 	Matchmaking,
-	Trening
+	Trening,
+	DeathMatch
 };
 enum MatchRoundType{
 	WarmupRound,
@@ -66,7 +67,9 @@ char MenuOptions[][][32] = {
 	{"dmo","Demo >"},
 		{"src","Start recording"},
 		{"spr","Stop recording"},
-	{"cmp","Change map >"}
+	{"cmp","Change map >"},
+	
+	{"dmh","Deathmatch"}
 };
 
 #define MAPLISTSIZE 9
@@ -278,6 +281,8 @@ public void InitGame(){
 	} else if(SERVER_MODE == Matchmaking){
 		ConfigWarmup(0,0);
 	} else if(SERVER_MODE == Trening){
+
+	} else if (SERVER_MODE == DeathMatch){
 
 	}
 
@@ -722,6 +727,142 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 			PrintHintText(victim, "<font color='#0087af'><b><u>%N</u></b></font><br><font color='#87df87'>Frags: %d   </font><font color='#af0000'>Deaths: %d</font><br><font color='#dfdf00'>MVPS: %d</font>", victim, GetClientFrags(victim), GetClientDeaths(victim), CS_GetMVPCount(victim));
 		}
 	}
+	
+	if(SERVER_MODE == DeathMatch){
+
+		
+		// hs bonus
+		if(headshot){
+			SetEntProp(attacker, Prop_Send, "m_ArmorValue", 100, 1);
+			SetEntProp(attacker, Prop_Send, "m_iHealth", 100, 1);
+			RequestFrame(Frame_GiveAmmo, GetClientSerial(attacker));
+		}else{
+			// ammo
+			// RequestFrame(Frame_GiveAmmo, GetClientSerial(attacker));
+			// hp
+			int attackerHP = GetClientHealth(attacker);
+			int newHP = attackerHP + 30;
+			SetEntProp(attacker, Prop_Send, "m_iHealth", newHP, 1);
+			// armor
+			int attackerAP = GetClientArmor(attacker);
+			int newAP = attackerAP + 30;
+			SetEntProp(attacker, Prop_Send, "m_ArmorValue", newAP, 1);
+		}
+	}
+}
+
+public void Frame_GiveAmmo(any serial)
+{
+    int weaponEntity;
+    int client = GetClientFromSerial(serial);
+    
+	weaponEntity = GetPlayerWeaponSlot(client, CS_SLOT_PRIMARY);
+    if (weaponEntity != -1)
+        Ammo_ClipRefill(EntIndexToEntRef(weaponEntity), client);
+
+    weaponEntity = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
+    if (weaponEntity != -1)
+        Ammo_ClipRefill(EntIndexToEntRef(weaponEntity), client);
+   
+
+}
+
+void Ammo_ClipRefill(int weaponRef, any client)
+{
+    int weaponEntity = EntRefToEntIndex(weaponRef);
+    if (IsValidEdict(weaponEntity))
+    {
+        char weaponName[64];
+        char clipSize;
+        char maxAmmoCount;
+
+        if (GetEntityClassname(weaponEntity, weaponName, sizeof(weaponName)))
+        {
+            clipSize = GetWeaponAmmoCount(weaponName, true);
+            maxAmmoCount = GetWeaponAmmoCount(weaponName, false);
+            switch (GetEntProp(weaponRef, Prop_Send, "m_iItemDefinitionIndex"))
+            {
+                case 60: clipSize = 20;
+                case 61: clipSize = 12;
+                case 63: clipSize = 12;
+                case 64: clipSize = 8;
+            }
+        }
+
+        SetEntProp(client, Prop_Send, "m_iAmmo", maxAmmoCount);
+        SetEntProp(weaponEntity, Prop_Send, "m_iClip1", clipSize);
+    }
+}
+
+int GetWeaponAmmoCount(char[] weaponName, bool currentClip)
+{
+    if (StrEqual(weaponName,  "weapon_ak47"))
+        return currentClip ? 30 : 90;
+    else if (StrEqual(weaponName,  "weapon_m4a1"))
+        return currentClip ? 30 : 90;
+    else if (StrEqual(weaponName,  "weapon_m4a1_silencer"))
+        return currentClip ? 20 : 60;
+    else if (StrEqual(weaponName,  "weapon_awp"))
+        return currentClip ? 10 : 30;
+    else if (StrEqual(weaponName,  "weapon_sg552"))
+        return currentClip ? 30 : 90;
+    else if (StrEqual(weaponName,  "weapon_aug"))
+        return currentClip ? 30 : 90;
+    else if (StrEqual(weaponName,  "weapon_p90"))
+        return currentClip ? 50 : 100;
+    else if (StrEqual(weaponName,  "weapon_galilar"))
+        return currentClip ? 35 : 90;
+    else if (StrEqual(weaponName,  "weapon_famas"))
+        return currentClip ? 25 : 90;
+    else if (StrEqual(weaponName,  "weapon_ssg08"))
+        return currentClip ? 10 : 90;
+    else if (StrEqual(weaponName,  "weapon_g3sg1"))
+        return currentClip ? 20 : 90;
+    else if (StrEqual(weaponName,  "weapon_scar20"))
+        return currentClip ? 20 : 90;
+    else if (StrEqual(weaponName,  "weapon_m249"))
+        return currentClip ? 100 : 200;
+    else if (StrEqual(weaponName,  "weapon_negev"))
+        return currentClip ? 150 : 200;
+    else if (StrEqual(weaponName,  "weapon_nova"))
+        return currentClip ? 8 : 32;
+    else if (StrEqual(weaponName,  "weapon_xm1014"))
+        return currentClip ? 7 : 32;
+    else if (StrEqual(weaponName,  "weapon_sawedoff"))
+        return currentClip ? 7 : 32;
+    else if (StrEqual(weaponName,  "weapon_mag7"))
+        return currentClip ? 5 : 32;
+    else if (StrEqual(weaponName,  "weapon_mac10"))
+        return currentClip ? 30 : 100;
+    else if (StrEqual(weaponName,  "weapon_mp9"))
+        return currentClip ? 30 : 120;
+    else if (StrEqual(weaponName,  "weapon_mp7"))
+        return currentClip ? 30 : 120;
+    else if (StrEqual(weaponName,  "weapon_ump45"))
+        return currentClip ? 25 : 100;
+    else if (StrEqual(weaponName,  "weapon_bizon"))
+        return currentClip ? 64 : 120;
+    else if (StrEqual(weaponName,  "weapon_glock"))
+        return currentClip ? 20 : 120;
+    else if (StrEqual(weaponName,  "weapon_fiveseven"))
+        return currentClip ? 20 : 100;
+    else if (StrEqual(weaponName,  "weapon_deagle"))
+        return currentClip ? 7 : 35;
+    else if (StrEqual(weaponName,  "weapon_revolver"))
+        return currentClip ? 8 : 8;
+    else if (StrEqual(weaponName,  "weapon_hkp2000"))
+        return currentClip ? 13 : 52;
+    else if (StrEqual(weaponName,  "weapon_usp_silencer"))
+        return currentClip ? 12 : 24;
+    else if (StrEqual(weaponName,  "weapon_p250"))
+        return currentClip ? 13 : 26;
+    else if (StrEqual(weaponName,  "weapon_elite"))
+        return currentClip ? 30 : 120;
+    else if (StrEqual(weaponName,  "weapon_tec9"))
+        return currentClip ? 24 : 120;
+    else if (StrEqual(weaponName,  "weapon_cz75a"))
+        return currentClip ? 12 : 12;
+    return currentClip ? 30 : 90;
 }
 
 public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcast){
@@ -733,6 +874,8 @@ public Action Event_RoundStart(Event event, const char[] name, bool dontBroadcas
 		RoundStartHandler_ServerModeMatchmaking(event);
 	} else if(SERVER_MODE == Trening){
 		RoundStartHandler_ServerModeTrening(event);
+	} else if (SERVER_MODE == DeathMatch){
+
 	}
 
 	return Plugin_Handled;
@@ -748,6 +891,8 @@ public Action Event_RoundEnd(Event event, const char[] name, bool dontBroadcast)
 		RoundEndHandler_ServerModeMatchmaking(event);
 	} else if(SERVER_MODE == Trening){
 		RoundEndHandler_ServerModeTrening(event);
+	} else if (SERVER_MODE == DeathMatch){
+
 	}
 	
 	return Plugin_Handled;
@@ -849,6 +994,11 @@ public void RunTreningMode(){
 	LoadSpawns(CurrentMapName);
 }
 
+public void RunDeatchmatchMode(){
+	 SERVER_MODE = DeathMatch;
+
+}
+
 /*
 * METHODS
 */
@@ -926,8 +1076,11 @@ public void RemoveAllWeapons(int client) {
 }
 
 public void SetRandomGrenade(int client){}
+
 public void SetRandomHP(int client){}
+
 public void SetPlayerPosition(int client){}
+
 public void	SetRandomBomb(){}
 
 Database DataBaseConnect(){
@@ -1047,7 +1200,6 @@ public void SetPlayersPosition(int site){
 	}
 
 }
-
 
 public int GetRandomSpawn(float type, int site){
 	int spawnIndex = 0;
@@ -1327,6 +1479,10 @@ public bool IsPlayerReady(int client){
 */
 
 public Action ConfigDefault(int client, int cfg){
+	
+	ServerCommand("game_mode 1");
+	ServerCommand("game_type 0");
+	
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -1454,6 +1610,9 @@ public Action ConfigDefault(int client, int cfg){
 }
 
 public Action ConfigMatch(int client, int cfg){
+	
+	ServerCommand("game_mode 1");
+	ServerCommand("game_type 0");
 	
 	CurrentRoundType = MatchRound;
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
@@ -1585,6 +1744,10 @@ public Action ConfigMatch(int client, int cfg){
 }
 
 public Action ConfigWarmup(int client, int cfg){
+	
+	ServerCommand("game_mode 1");
+	ServerCommand("game_type 0");
+	
 	CurrentRoundType = WarmupRound;
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
@@ -1713,6 +1876,10 @@ public Action ConfigWarmup(int client, int cfg){
 }
 
 public Action ConfigKnifeRound(int client, int cfg){
+	
+	ServerCommand("game_mode 1");
+	ServerCommand("game_type 0");
+	
 	CurrentRoundType = KnifeRound;
 	ServerCommand("mp_unpause_match");
 	ServerCommand("mp_warmuptime 1");
@@ -1731,6 +1898,10 @@ public Action ConfigKnifeRound(int client, int cfg){
 }
 
 public Action ConfigTrening(int client, int cfg){
+	
+	ServerCommand("game_mode 0");
+	ServerCommand("game_type 0");
+	
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -1858,6 +2029,10 @@ public Action ConfigTrening(int client, int cfg){
 }
 
 public Action ConfigRetake(int client, int cfg){
+	
+	ServerCommand("game_mode 1");
+	ServerCommand("game_type 0");
+	
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -1985,6 +2160,137 @@ public Action ConfigRetake(int client, int cfg){
 	ServerCommand("mp_buy_anywhere 0");
 	ServerCommand("mp_buytime 0");
 	
+	ServerCommand("mp_restartgame 1");
+	ServerCommand("mp_warmup_start");
+	
+	return Plugin_Handled;
+}
+
+public Action ConfigDeathmatch(int client, int cfg){
+	
+	ServerCommand("game_mode 2"); //dm
+	ServerCommand("game_type 1"); //dm
+	
+	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
+	ServerCommand("mp_t_default_secondary weapon_glock");
+	ServerCommand("ammo_grenade_limit_default 0");
+	ServerCommand("ammo_grenade_limit_flashbang 0");
+	ServerCommand("ammo_grenade_limit_total 0");
+	ServerCommand("bot_quota 0");
+	ServerCommand("cash_player_bomb_defused 300");
+	ServerCommand("cash_player_bomb_planted 300");
+	ServerCommand("cash_player_damage_hostage -30");
+	ServerCommand("cash_player_interact_with_hostage 150");
+	ServerCommand("cash_player_killed_enemy_default 300");
+	ServerCommand("cash_player_killed_enemy_factor 1");
+	ServerCommand("cash_player_killed_hostage -1000");
+	ServerCommand("cash_player_killed_teammate -300");
+	ServerCommand("cash_player_rescued_hostage 1000");
+	ServerCommand("cash_team_elimination_bomb_map 3250");
+	ServerCommand("cash_team_hostage_alive 150");
+	ServerCommand("cash_team_hostage_interaction 150");
+	ServerCommand("cash_team_loser_bonus 1400");
+	ServerCommand("cash_team_loser_bonus_consecutive_rounds 500");
+	ServerCommand("cash_team_planted_bomb_but_defused 800");
+	ServerCommand("cash_team_rescued_hostage 750");
+	ServerCommand("cash_team_terrorist_win_bomb 3500");
+	ServerCommand("cash_team_win_by_defusing_bomb 3500");
+	ServerCommand("cash_team_win_by_hostage_rescue 3500");
+	ServerCommand("cash_player_get_killed 0");
+	ServerCommand("cash_player_respawn_amount 0");
+	ServerCommand("cash_team_elimination_hostage_map_ct 2000");
+	ServerCommand("cash_team_elimination_hostage_map_t 1000");
+	ServerCommand("cash_team_win_by_time_running_out_bomb 3250");
+	ServerCommand("cash_team_win_by_time_running_out_hostage 3250");
+	ServerCommand("ff_damage_reduction_grenade 0.85");
+	ServerCommand("ff_damage_reduction_bullets 0.33");
+	ServerCommand("ff_damage_reduction_other 0.4");
+	ServerCommand("ff_damage_reduction_grenade_self 1");
+	ServerCommand("mp_afterroundmoney 0");
+	ServerCommand("mp_autokick 0");
+	ServerCommand("mp_autoteambalance 0");
+	ServerCommand("mp_buytime 15");
+	ServerCommand("mp_c4timer 35");
+	ServerCommand("mp_death_drop_defuser 1");
+	ServerCommand("mp_death_drop_grenade 2");
+	ServerCommand("mp_death_drop_gun 1");
+	ServerCommand("mp_defuser_allocation 0");
+	ServerCommand("mp_do_warmup_period 1");
+	ServerCommand("mp_forcecamera 1");
+	ServerCommand("mp_force_pick_time 160");
+	ServerCommand("mp_free_armor 0");
+	ServerCommand("mp_freezetime 6");
+	ServerCommand("mp_friendlyfire 0");
+	ServerCommand("mp_halftime 0");
+	ServerCommand("mp_halftime_duration 0");
+	ServerCommand("mp_join_grace_time 30");
+	ServerCommand("mp_limitteams 0");
+	ServerCommand("mp_logdetail 3");
+	ServerCommand("mp_match_can_clinch 1");
+	ServerCommand("mp_match_end_restart 1");
+	ServerCommand("mp_maxmoney 9999999");
+	ServerCommand("mp_maxrounds 5");
+	ServerCommand("mp_molotovusedelay 0");
+	ServerCommand("mp_overtime_enable 1");
+	ServerCommand("mp_overtime_maxrounds 10");
+	ServerCommand("mp_overtime_startmoney 16000");
+	ServerCommand("mp_playercashawards 1");
+	ServerCommand("mp_playerid 0");
+	ServerCommand("mp_playerid_delay 0.5");
+	ServerCommand("mp_playerid_hold 0.25");
+	ServerCommand("mp_round_restart_delay 5");
+	ServerCommand("mp_roundtime 10");
+	ServerCommand("mp_roundtime_defuse 10");
+	ServerCommand("mp_solid_teammates 1");
+	ServerCommand("mp_startmoney 9999999");
+	ServerCommand("mp_teamcashawards 1");
+	ServerCommand("mp_timelimit 0");
+	ServerCommand("mp_tkpunish 0");
+	ServerCommand("mp_warmuptime 36000");
+	ServerCommand("mp_weapons_allow_map_placed 1");
+	ServerCommand("mp_weapons_allow_zeus 1");
+	ServerCommand("mp_win_panel_display_time 15");
+	ServerCommand("spec_freeze_time 5.0");
+	ServerCommand("spec_freeze_panel_extended_time 0");
+	ServerCommand("sv_accelerate 5.5");
+	ServerCommand("sv_stopspeed 80");
+	ServerCommand("sv_allow_votes 0");
+	ServerCommand("sv_allow_wait_command 0");
+	ServerCommand("sv_alltalk 1");
+	ServerCommand("sv_alternateticks 0");
+	ServerCommand("sv_cheats 0");
+	ServerCommand("sv_clockcorrection_msecs 15");
+	ServerCommand("sv_consistency 0");
+	ServerCommand("sv_contact 0");
+	ServerCommand("sv_damage_print_enable 0");
+	ServerCommand("sv_dc_friends_reqd 0");
+	ServerCommand("sv_deadtalk 1");
+	ServerCommand("sv_forcepreload 0");
+	ServerCommand("sv_friction 5.2");
+	ServerCommand("sv_full_alltalk 0");
+	ServerCommand("sv_gameinstructor_disable 1");
+	ServerCommand("sv_ignoregrenaderadio 0");
+	ServerCommand("sv_kick_players_with_cooldown 0");
+	ServerCommand("sv_kick_ban_duration 0 ");
+	ServerCommand("sv_lan 0");
+	ServerCommand("sv_log_onefile 0");
+	ServerCommand("sv_logbans 1");
+	ServerCommand("sv_logecho 1");
+	ServerCommand("sv_logfile 1");
+	ServerCommand("sv_logflush 0");
+	ServerCommand("sv_logsdir logfiles");
+	ServerCommand("sv_maxrate 0");
+	ServerCommand("sv_mincmdrate 30");
+	ServerCommand("sv_minrate 20000");
+	ServerCommand("sv_competitive_minspec 1");
+	ServerCommand("sv_competitive_official_5v5 1");
+	ServerCommand("sv_pausable 1");
+	ServerCommand("sv_pure 1");
+	ServerCommand("sv_pure_kick_clients 1");
+	ServerCommand("sv_pure_trace 0");
+	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
+	ServerCommand("sv_steamgroup_exclusive 0");
+	ServerCommand("sv_voiceenable 1");
 	ServerCommand("mp_restartgame 1");
 	ServerCommand("mp_warmup_start");
 	
