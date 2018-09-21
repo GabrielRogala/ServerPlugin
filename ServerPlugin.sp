@@ -69,7 +69,9 @@ char MenuOptions[][][32] = {
 		{"spr","Stop recording"},
 	{"cmp","Change map >"},
 	
-	{"dmh","Deathmatch"}
+	{"dmh","Deathmatch"},
+	{"hsn","ON"},
+	{"hsf","OFF"}
 };
 
 #define MAPLISTSIZE 9
@@ -205,6 +207,9 @@ bool TvEnable;
 ConVar RequiredReadyPlayers = null;
 // trening
 
+// DM
+bool hsOnly;
+
 
 /*
 * PLUGIN HANDLER
@@ -247,6 +252,9 @@ public void OnPluginStart(){
 	TvEnable = false;
 	DmgEnabled = false;
 	DemoRecorded = true;
+	
+	hsOnly = false;
+	
 }
 
 public void OnMapStart(){
@@ -283,7 +291,7 @@ public void InitGame(){
 	} else if(SERVER_MODE == Trening){
 
 	} else if (SERVER_MODE == DeathMatch){
-
+		RunDeatchmatchMode();
 	}
 
 }
@@ -301,6 +309,7 @@ public void OpenMenu_ServerMenu(int client , int level){
 		menu.AddItem(MenuOptions[2][0], MenuOptions[2][1]);
 		menu.AddItem(MenuOptions[3][0], MenuOptions[3][1]);
 		menu.AddItem(MenuOptions[4][0], MenuOptions[4][1]);
+		menu.AddItem(MenuOptions[20][0], MenuOptions[20][1]);
 	} else if(level == 5){
 		menu.SetTitle(MenuOptions[5][1]);
 		menu.AddItem(MenuOptions[6][0], MenuOptions[6][1]);
@@ -324,6 +333,10 @@ public void OpenMenu_ServerMenu(int client , int level){
 		for (int i = 0; i < MAPLISTSIZE; i++){
 			menu.AddItem(MapList[i], MapList[i]);
 		}
+	} else if(level == 20 ){
+		menu.SetTitle("HS only mode");
+		menu.AddItem(MenuOptions[21][0], MenuOptions[21][1]);
+		menu.AddItem(MenuOptions[22][0], MenuOptions[22][1]);
 	} else {
 		menu.SetTitle("Server menu");
 		menu.AddItem(MenuOptions[0][0], MenuOptions[0][1]);
@@ -365,6 +378,20 @@ public int MenuHandler_ServerMenu(Menu menu, MenuAction action, int param1, int 
 		else if (StrEqual(info, MenuOptions[4][0]))
 		{
 			RunTreningMode();
+		}
+		else if (StrEqual(info, MenuOptions[20][0]))
+		{
+			OpenMenu_ServerMenu(param1, 20);
+		}
+		else if (StrEqual(info, MenuOptions[21][0]))
+		{
+			hsOnly = true;
+			RunDeatchmatchMode();
+		}
+		else if (StrEqual(info, MenuOptions[22][0]))
+		{
+			hsOnly = false;
+			RunDeatchmatchMode();
 		}
 		else if (StrEqual(info, MenuOptions[5][0]))
 		{
@@ -749,7 +776,8 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 	
 	if(SERVER_MODE == DeathMatch){
 
-		
+		Damage[attacker][victim] = 0;
+		Hits[attacker][victim] = 0;
 		// hs bonus
 		if(headshot){
 			SetEntProp(attacker, Prop_Send, "m_ArmorValue", 100, 1);
@@ -761,10 +789,20 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 			// hp
 			int attackerHP = GetClientHealth(attacker);
 			int newHP = attackerHP + 30;
+			
+			if(newHP > 100){
+				newHP = 100;
+			}
+			
 			SetEntProp(attacker, Prop_Send, "m_iHealth", newHP, 1);
 			// armor
 			int attackerAP = GetClientArmor(attacker);
 			int newAP = attackerAP + 30;
+				
+			if(newAP > 100){
+				newAP = 100;
+			}
+			
 			SetEntProp(attacker, Prop_Send, "m_ArmorValue", newAP, 1);
 		}
 	}
@@ -1018,7 +1056,12 @@ public void RunTreningMode(){
 }
 
 public void RunDeatchmatchMode(){
-	 SERVER_MODE = DeathMatch;
+ 	SERVER_MODE = DeathMatch;
+	if(hsOnly){
+		ConfigDeathmatch(0, 1);
+	}else{
+		ConfigDeathmatch(0, 0);
+	}
 
 }
 
@@ -1506,6 +1549,8 @@ public Action ConfigDefault(int client, int cfg){
 	ServerCommand("game_mode 1");
 	ServerCommand("game_type 0");
 	
+	ServerCommand("exec gamemode_competitive");
+	
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
 	ServerCommand("ammo_grenade_limit_default 0");
@@ -1626,6 +1671,10 @@ public Action ConfigDefault(int client, int cfg){
 	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
 	ServerCommand("sv_steamgroup_exclusive 0");
 	ServerCommand("sv_voiceenable 1");
+	
+	ServerCommand("mp_teammates_are_enemies 0");
+	ServerCommand("mp_damage_headshot_only 0");
+	
 	ServerCommand("mp_restartgame 1");
 	ServerCommand("mp_warmup_start");
 	
@@ -1636,6 +1685,8 @@ public Action ConfigMatch(int client, int cfg){
 	
 	ServerCommand("game_mode 1");
 	ServerCommand("game_type 0");
+	
+	ServerCommand("exec gamemode_competitive");
 	
 	CurrentRoundType = MatchRound;
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
@@ -1762,6 +1813,10 @@ public Action ConfigMatch(int client, int cfg){
 	ServerCommand("sv_steamgroup_exclusive 0");
 	ServerCommand("sv_voiceenable 1");
 	ServerCommand("sv_auto_full_alltalk_during_warmup_half_end 0");
+	
+	ServerCommand("mp_teammates_are_enemies 0");
+	ServerCommand("mp_damage_headshot_only 0");
+	
 	ServerCommand("mp_restartgame 1");
 	return Plugin_Handled;
 }
@@ -1892,6 +1947,10 @@ public Action ConfigWarmup(int client, int cfg){
 	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
 	ServerCommand("sv_steamgroup_exclusive 0");
 	ServerCommand("sv_voiceenable 1");
+	
+	ServerCommand("mp_teammates_are_enemies 0");
+	ServerCommand("mp_damage_headshot_only 0");
+	
 	ServerCommand("mp_restartgame 1");
 	ServerCommand("mp_warmup_start");
 	
@@ -1915,6 +1974,10 @@ public Action ConfigKnifeRound(int client, int cfg){
 	ServerCommand("mp_roundtime_hostage 60");
 	ServerCommand("mp_give_player_c4 0");
 	ServerCommand("mp_maxmoney 0");
+	
+	ServerCommand("mp_teammates_are_enemies 0");
+	ServerCommand("mp_damage_headshot_only 0");
+	
 	ServerCommand("mp_restartgame 1");
 
 	return Plugin_Handled;
@@ -2045,6 +2108,10 @@ public Action ConfigTrening(int client, int cfg){
 	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
 	ServerCommand("sv_steamgroup_exclusive 0");
 	ServerCommand("sv_voiceenable 1");
+	
+	ServerCommand("mp_teammates_are_enemies 0");
+	ServerCommand("mp_damage_headshot_only 0");
+	
 	ServerCommand("mp_restartgame 1");
 	ServerCommand("mp_warmup_start");
 	
@@ -2055,6 +2122,8 @@ public Action ConfigRetake(int client, int cfg){
 	
 	ServerCommand("game_mode 1");
 	ServerCommand("game_type 0");
+	
+	ServerCommand("exec gamemode_competitive");
 	
 	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
 	ServerCommand("mp_t_default_secondary weapon_glock");
@@ -2183,6 +2252,8 @@ public Action ConfigRetake(int client, int cfg){
 	ServerCommand("mp_buy_anywhere 0");
 	ServerCommand("mp_buytime 0");
 	
+	ServerCommand("mp_teammates_are_enemies 0");
+	
 	ServerCommand("mp_restartgame 1");
 	ServerCommand("mp_warmup_start");
 	
@@ -2194,128 +2265,16 @@ public Action ConfigDeathmatch(int client, int cfg){
 	ServerCommand("game_mode 2"); //dm
 	ServerCommand("game_type 1"); //dm
 	
-	ServerCommand("mp_ct_default_secondary weapon_hkp2000");
-	ServerCommand("mp_t_default_secondary weapon_glock");
-	ServerCommand("ammo_grenade_limit_default 0");
-	ServerCommand("ammo_grenade_limit_flashbang 0");
-	ServerCommand("ammo_grenade_limit_total 0");
-	ServerCommand("bot_quota 0");
-	ServerCommand("cash_player_bomb_defused 300");
-	ServerCommand("cash_player_bomb_planted 300");
-	ServerCommand("cash_player_damage_hostage -30");
-	ServerCommand("cash_player_interact_with_hostage 150");
-	ServerCommand("cash_player_killed_enemy_default 300");
-	ServerCommand("cash_player_killed_enemy_factor 1");
-	ServerCommand("cash_player_killed_hostage -1000");
-	ServerCommand("cash_player_killed_teammate -300");
-	ServerCommand("cash_player_rescued_hostage 1000");
-	ServerCommand("cash_team_elimination_bomb_map 3250");
-	ServerCommand("cash_team_hostage_alive 150");
-	ServerCommand("cash_team_hostage_interaction 150");
-	ServerCommand("cash_team_loser_bonus 1400");
-	ServerCommand("cash_team_loser_bonus_consecutive_rounds 500");
-	ServerCommand("cash_team_planted_bomb_but_defused 800");
-	ServerCommand("cash_team_rescued_hostage 750");
-	ServerCommand("cash_team_terrorist_win_bomb 3500");
-	ServerCommand("cash_team_win_by_defusing_bomb 3500");
-	ServerCommand("cash_team_win_by_hostage_rescue 3500");
-	ServerCommand("cash_player_get_killed 0");
-	ServerCommand("cash_player_respawn_amount 0");
-	ServerCommand("cash_team_elimination_hostage_map_ct 2000");
-	ServerCommand("cash_team_elimination_hostage_map_t 1000");
-	ServerCommand("cash_team_win_by_time_running_out_bomb 3250");
-	ServerCommand("cash_team_win_by_time_running_out_hostage 3250");
-	ServerCommand("ff_damage_reduction_grenade 0.85");
-	ServerCommand("ff_damage_reduction_bullets 0.33");
-	ServerCommand("ff_damage_reduction_other 0.4");
-	ServerCommand("ff_damage_reduction_grenade_self 1");
-	ServerCommand("mp_afterroundmoney 0");
-	ServerCommand("mp_autokick 0");
-	ServerCommand("mp_autoteambalance 0");
-	ServerCommand("mp_buytime 15");
-	ServerCommand("mp_c4timer 35");
-	ServerCommand("mp_death_drop_defuser 1");
-	ServerCommand("mp_death_drop_grenade 2");
-	ServerCommand("mp_death_drop_gun 1");
-	ServerCommand("mp_defuser_allocation 0");
-	ServerCommand("mp_do_warmup_period 1");
-	ServerCommand("mp_forcecamera 1");
-	ServerCommand("mp_force_pick_time 160");
-	ServerCommand("mp_free_armor 0");
-	ServerCommand("mp_freezetime 6");
-	ServerCommand("mp_friendlyfire 0");
-	ServerCommand("mp_halftime 0");
-	ServerCommand("mp_halftime_duration 0");
-	ServerCommand("mp_join_grace_time 30");
-	ServerCommand("mp_limitteams 0");
-	ServerCommand("mp_logdetail 3");
-	ServerCommand("mp_match_can_clinch 1");
-	ServerCommand("mp_match_end_restart 1");
-	ServerCommand("mp_maxmoney 9999999");
-	ServerCommand("mp_maxrounds 5");
-	ServerCommand("mp_molotovusedelay 0");
-	ServerCommand("mp_overtime_enable 1");
-	ServerCommand("mp_overtime_maxrounds 10");
-	ServerCommand("mp_overtime_startmoney 16000");
-	ServerCommand("mp_playercashawards 1");
-	ServerCommand("mp_playerid 0");
-	ServerCommand("mp_playerid_delay 0.5");
-	ServerCommand("mp_playerid_hold 0.25");
-	ServerCommand("mp_round_restart_delay 5");
-	ServerCommand("mp_roundtime 10");
-	ServerCommand("mp_roundtime_defuse 10");
-	ServerCommand("mp_solid_teammates 1");
-	ServerCommand("mp_startmoney 9999999");
-	ServerCommand("mp_teamcashawards 1");
-	ServerCommand("mp_timelimit 0");
-	ServerCommand("mp_tkpunish 0");
-	ServerCommand("mp_warmuptime 36000");
-	ServerCommand("mp_weapons_allow_map_placed 1");
-	ServerCommand("mp_weapons_allow_zeus 1");
-	ServerCommand("mp_win_panel_display_time 15");
-	ServerCommand("spec_freeze_time 5.0");
-	ServerCommand("spec_freeze_panel_extended_time 0");
-	ServerCommand("sv_accelerate 5.5");
-	ServerCommand("sv_stopspeed 80");
-	ServerCommand("sv_allow_votes 0");
-	ServerCommand("sv_allow_wait_command 0");
-	ServerCommand("sv_alltalk 1");
-	ServerCommand("sv_alternateticks 0");
-	ServerCommand("sv_cheats 0");
-	ServerCommand("sv_clockcorrection_msecs 15");
-	ServerCommand("sv_consistency 0");
-	ServerCommand("sv_contact 0");
-	ServerCommand("sv_damage_print_enable 0");
-	ServerCommand("sv_dc_friends_reqd 0");
-	ServerCommand("sv_deadtalk 1");
-	ServerCommand("sv_forcepreload 0");
-	ServerCommand("sv_friction 5.2");
-	ServerCommand("sv_full_alltalk 0");
-	ServerCommand("sv_gameinstructor_disable 1");
-	ServerCommand("sv_ignoregrenaderadio 0");
-	ServerCommand("sv_kick_players_with_cooldown 0");
-	ServerCommand("sv_kick_ban_duration 0 ");
-	ServerCommand("sv_lan 0");
-	ServerCommand("sv_log_onefile 0");
-	ServerCommand("sv_logbans 1");
-	ServerCommand("sv_logecho 1");
-	ServerCommand("sv_logfile 1");
-	ServerCommand("sv_logflush 0");
-	ServerCommand("sv_logsdir logfiles");
-	ServerCommand("sv_maxrate 0");
-	ServerCommand("sv_mincmdrate 30");
-	ServerCommand("sv_minrate 20000");
-	ServerCommand("sv_competitive_minspec 1");
-	ServerCommand("sv_competitive_official_5v5 1");
-	ServerCommand("sv_pausable 1");
-	ServerCommand("sv_pure 1");
-	ServerCommand("sv_pure_kick_clients 1");
-	ServerCommand("sv_pure_trace 0");
-	ServerCommand("sv_spawn_afk_bomb_drop_time 30");
-	ServerCommand("sv_steamgroup_exclusive 0");
-	ServerCommand("sv_voiceenable 1");
+	ServerCommand("exec gamemode_deathmatch");
+	ServerCommand("mp_teammates_are_enemies 1");
+	if(cfg == 1){
+		ServerCommand("mp_damage_headshot_only 1");
+	}else{
+		ServerCommand("mp_damage_headshot_only 0");
+	}	
+
 	ServerCommand("mp_restartgame 1");
-	ServerCommand("mp_warmup_start");
+
 	
 	return Plugin_Handled;
 }
