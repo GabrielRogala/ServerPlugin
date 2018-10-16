@@ -180,6 +180,7 @@ int TPlayersList[MAXPLAYERS + 1];
 int Bomberman = -1;
 
 int Site;
+int SpawnCounter;
 
 // match
 MatchRoundType CurrentRoundType;
@@ -966,11 +967,20 @@ public void RoundStartHandler_ServerModeDefault(Event event){
 
 public void RoundStartHandler_ServerModeRetake(Event event){
 	Site = GetRandomInt(0, 1);
+	
+	if(Site == 0){
+		PrintHintTextToAll("<font color='#0087af'>Site: <b><u>A</u></b></font>");
+	}else{
+		PrintHintTextToAll("<font color='#0087af'>Site: <b><u>B</u></b></font>");
+	}
+	
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		SetRandomWeapon(i);
 		GiveWeapons(i);
 	}
+	
+	//PrintLoadedSpawn();
 	SetPlayersPosition(Site);
 }
 
@@ -1042,11 +1052,26 @@ public void RunRetakeMode(){
 	LoadSpawns(CurrentMapName);
 }
 
+public void PrintLoadedSpawn(){
+	
+	for (int i = 0; i < SpawnCounter; i++)
+	{
+		PrintToChatAll("[\x07DB\x01] \x06 Spawn: %f | %f | %f | %f %f %f | %f", Spawns[i][0],
+																				Spawns[i][1],
+																				Spawns[i][2],
+																				Spawns[i][3],
+																				Spawns[i][4],
+																				Spawns[i][5],
+																				Spawns[i][6]);
+		
+	}
+}
+
 public void RunMatchMode(){
 	SERVER_MODE = Matchmaking;
 	ServerCommand("tv_enable 1");
 	ServerCommand("changelevel \"%s\"",CurrentMapName);
-	ConfigRetake(0, 0);
+	ConfigWarmup(0, 0);
 	PrintToChatAll("%s Start matchmaking mod", PREFIX_PLUGIN);
 }
 
@@ -1176,28 +1201,28 @@ public void LoadSpawns(char[] mapName){
 	} 
 	else 
 	{
-		int spawnCounter = 0;
+		SpawnCounter = 0;
 		while (SQL_FetchRow(result))
 		{
 		
-			Spawns[spawnCounter][0] = float(SQL_FetchInt(result, 0)); // id
-			Spawns[spawnCounter][1] = float(SQL_FetchInt(result, 1)); // type
-			Spawns[spawnCounter][2] = float(SQL_FetchInt(result, 2)); // site
-			Spawns[spawnCounter][3] = SQL_FetchFloat(result, 3); // posx
-			Spawns[spawnCounter][4] = SQL_FetchFloat(result, 4); // posy
-			Spawns[spawnCounter][5] = SQL_FetchFloat(result, 5); // posz
-			Spawns[spawnCounter][6] = SQL_FetchFloat(result, 6); // angx
+			Spawns[SpawnCounter][0] = float(SQL_FetchInt(result, 0)); // id
+			Spawns[SpawnCounter][1] = float(SQL_FetchInt(result, 1)); // type
+			Spawns[SpawnCounter][2] = float(SQL_FetchInt(result, 2)); // site
+			Spawns[SpawnCounter][3] = SQL_FetchFloat(result, 3); // posx
+			Spawns[SpawnCounter][4] = SQL_FetchFloat(result, 4); // posy
+			Spawns[SpawnCounter][5] = SQL_FetchFloat(result, 5); // posz
+			Spawns[SpawnCounter][6] = SQL_FetchFloat(result, 6); // angx
 			
 			
-			PrintToChatAll("[\x07DB\x01] \x06 Spawn: %f | %f | %f | %f %f %f | %f", Spawns[spawnCounter][0],
-																					Spawns[spawnCounter][1],
-																					Spawns[spawnCounter][2],
-																					Spawns[spawnCounter][3],
-																					Spawns[spawnCounter][4],
-																					Spawns[spawnCounter][5],
-																					Spawns[spawnCounter][6]);
+			PrintToChatAll("[\x07DB\x01] \x06 Spawn: %f | %f | %f | %f %f %f | %f", Spawns[SpawnCounter][0],
+																					Spawns[SpawnCounter][1],
+																					Spawns[SpawnCounter][2],
+																					Spawns[SpawnCounter][3],
+																					Spawns[SpawnCounter][4],
+																					Spawns[SpawnCounter][5],
+																					Spawns[SpawnCounter][6]);
 			
-			spawnCounter++;
+			SpawnCounter++;
 		}
 
 		delete result;
@@ -1207,7 +1232,7 @@ public void LoadSpawns(char[] mapName){
 
 public void SetPlayersPosition(int site){
 	
-	PrintToChatAll("SET PLAYER POSITION");
+	//PrintToChatAll("SET PLAYER POSITION");
 	
 	CounterCt = 0;
 	CounterT = 0;
@@ -1219,15 +1244,15 @@ public void SetPlayersPosition(int site){
 			if(Spawns[i][1] == PlayerTypeCt ){
 				PlayersCtSpawns[CounterCt++] = i;
 			}else if(Spawns[i][1] == PlayerTypeT){
-				PlayersCtSpawns[CounterT++] = i;
+				PlayersTSpawns[CounterT++] = i;
 			}else if(Spawns[i][1] == PlayerTypeBomb){
-				PlayersCtSpawns[CounterBomb++] = i;
+				PlayersBombSpawns[CounterBomb++] = i;
 			}
 		}
 	}
 	
 	for (int i = 1; i < MAXPLAYERS + 1; i++){
-		if (IsClientValid(i))
+		//if (IsClientValid(i))
 		{
 			
 			int spawnIndex = 0;
@@ -1236,13 +1261,14 @@ public void SetPlayersPosition(int site){
 				spawnIndex = GetRandomSpawn(PlayerTypeCt,site);
 			}else if(GetClientTeam(i) == CS_TEAM_T){
 				
-				if(Bomberman == i){
+				if (GetPlayerWeaponSlot(i, CS_SLOT_C4) != -1){
 					spawnIndex = GetRandomSpawn(PlayerTypeBomb,site);
 				}else{
 					spawnIndex = GetRandomSpawn(PlayerTypeT,site);
 				}
 				
 			}
+			
 			
 			float loc[] =  { 0.0, 0.0, 0.0 };
 			float ang[] =  { 0.0, 0.0, 0.0 };
@@ -1254,7 +1280,7 @@ public void SetPlayersPosition(int site){
 			ang[1] = Spawns[spawnIndex][6];
 			
 			TeleportEntity(i, loc, ang,	NULL_VECTOR);
-			
+			/*
 			PrintToChat(i,"[\x07DB\x01] \x06 Player spawn: %f | %f | %f | %f %f %f | %f", Spawns[spawnIndex][0],
 																		Spawns[spawnIndex][1],
 																		Spawns[spawnIndex][2],
@@ -1262,6 +1288,7 @@ public void SetPlayersPosition(int site){
 																		Spawns[spawnIndex][4],
 																		Spawns[spawnIndex][5],
 																		Spawns[spawnIndex][6]);
+			*/
 		}
 	}
 
@@ -1272,27 +1299,27 @@ public int GetRandomSpawn(float type, int site){
 	int result = -1;
 	
 	if(type == PlayerTypeCt){
-		PrintToChatAll("SPAWN CT : %i ",CounterCt);
+		//PrintToChatAll("SPAWN CT : %i ",CounterCt);
 		
 		spawnIndex = GetRandomInt(0, CounterCt-1);
 		result = PlayersCtSpawns[spawnIndex];
-		PrintToChatAll("SPAWN ct get %i ",spawnIndex);
+		//("SPAWN ct get %i ",spawnIndex);
 		PlayersCtSpawns[spawnIndex] = PlayersCtSpawns[CounterCt - 1];
 		CounterCt--;	
 	}else if(type == PlayerTypeT){
-		PrintToChatAll("SPAWN T : %i ",CounterT);
+		//PrintToChatAll("SPAWN T : %i ",CounterT);
 		
 		spawnIndex = GetRandomInt(0, CounterT-1);
 		result = PlayersTSpawns[spawnIndex];
-		PrintToChatAll("SPAWN t get %i ",spawnIndex);
+		//PrintToChatAll("SPAWN t get %i ",spawnIndex);
 		PlayersTSpawns[spawnIndex] = PlayersTSpawns[CounterT - 1];
 		CounterT--;
 	}else if(type == PlayerTypeBomb){
-		PrintToChatAll("SPAWN B : %i ",CounterBomb);
+		//PrintToChatAll("SPAWN B : %i ",CounterBomb);
 		
 		spawnIndex = GetRandomInt(0, CounterBomb-1);
 		result = PlayersBombSpawns[spawnIndex];
-		PrintToChatAll("SPAWN B get %i ",spawnIndex);
+		//PrintToChatAll("SPAWN B get %i ",spawnIndex);
 		PlayersBombSpawns[spawnIndex] = PlayersBombSpawns[CounterBomb - 1];
 		CounterBomb--;
 	}
@@ -2251,11 +2278,72 @@ public Action ConfigRetake(int client, int cfg){
 	ServerCommand("mp_maxmoney 0");
 	ServerCommand("mp_buy_anywhere 0");
 	ServerCommand("mp_buytime 0");
+	ServerCommand("mp_warmuptime 60");
 	
-	ServerCommand("mp_teammates_are_enemies 0");
+	
+	ServerCommand("mp_teammates_are_enemies 0");	
+	
+	ServerCommand("mp_startmoney 0");
+ServerCommand("mp_buytime 0");
+ServerCommand("mp_freezetime 5");
+ServerCommand("mp_roundtime 0.15");
+ServerCommand("mp_roundtime_defuse 0.15");
+ServerCommand("mp_roundtime_hostage 0.15");
+ServerCommand("mp_friendlyfire 0");
+ServerCommand("mp_defuser_allocation 0");
+ServerCommand("mp_c4timer 35");
+ServerCommand("mp_match_can_clinch 0");
+ServerCommand("mp_match_end_restart 1");
+ServerCommand("mp_endmatch_votenextmap 0");
+ServerCommand("mp_warmup_pausetimer 0");
+ServerCommand("mp_warmup_end");
+ServerCommand("mp_warmuptime 0");
+ServerCommand("mp_randomspawn 0");
+ServerCommand("mp_randomspawn_los 0");
+ServerCommand("mp_teammates_are_enemies 0");
+ServerCommand("mp_free_armor 0");
+ServerCommand("sv_infinite_ammo 0");
+ServerCommand("mp_buy_anywhere 0");
+ServerCommand("mp_death_drop_gun 1");
+ServerCommand("mp_solid_teammates 1");
+ServerCommand("sv_showimpacts 0");
+ServerCommand("mp_weapons_allow_map_placed 1");
+ServerCommand("sv_damage_print_enable 1");
+ServerCommand("mp_maxrounds 30");
+ServerCommand("mp_round_restart_delay 2");
+ServerCommand("bot_quota 0");
+ServerCommand("mp_ignore_round_win_conditions 0");
+ServerCommand("mp_warmup_pausetimer 0");
+ServerCommand("mp_autoteambalance 0");
+ServerCommand("mp_do_warmup_period 1");
+ServerCommand("mp_warmuptime 20");
+ServerCommand("mp_halftime 0");
+ServerCommand("mp_join_grace_time 0");
+ServerCommand("mp_match_can_clinch 0");
+ServerCommand("mp_respawn_on_death_ct 0");
+ServerCommand("mp_respawn_on_death_t 0");
+ServerCommand("mp_give_player_c4 0");
+ServerCommand("mp_halftime 0");
+ServerCommand("bot_quota 0");
+ServerCommand("mp_autokick 0");
+ServerCommand("sv_alltalk 0");
+ServerCommand("mp_forcecamera 1");
+ServerCommand("mp_maxrounds 30");
+ServerCommand("sv_allow_votes 0");
+ServerCommand("sv_deadtalk 1");
+ServerCommand("mp_solid_teammates 1");
+ServerCommand("mp_endmatch_votenextmap 0");
+ServerCommand("mp_match_end_restart 5");
+ServerCommand("mp_teamcashawards 0");
+ServerCommand("mp_playercashawards 0");
+ServerCommand("ammo_grenade_limit_flashbang 2");
 	
 	ServerCommand("mp_restartgame 1");
+	ServerCommand("mp_warmuptime 60");
+
 	ServerCommand("mp_warmup_start");
+	
+	
 	
 	return Plugin_Handled;
 }
