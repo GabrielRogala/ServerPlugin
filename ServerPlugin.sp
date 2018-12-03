@@ -809,8 +809,7 @@ public Action Event_PlayerDeath(Event event, const char[] name, bool dontBroadca
 	}
 }
 
-public void Frame_GiveAmmo(any serial)
-{
+public void Frame_GiveAmmo(any serial){
     int weaponEntity;
     int client = GetClientFromSerial(serial);
     
@@ -825,8 +824,7 @@ public void Frame_GiveAmmo(any serial)
 
 }
 
-void Ammo_ClipRefill(int weaponRef, any client)
-{
+void Ammo_ClipRefill(int weaponRef, any client){
     int weaponEntity = EntRefToEntIndex(weaponRef);
     if (IsValidEdict(weaponEntity))
     {
@@ -852,8 +850,7 @@ void Ammo_ClipRefill(int weaponRef, any client)
     }
 }
 
-int GetWeaponAmmoCount(char[] weaponName, bool currentClip)
-{
+int GetWeaponAmmoCount(char[] weaponName, bool currentClip){
     if (StrEqual(weaponName,  "weapon_ak47"))
         return currentClip ? 30 : 90;
     else if (StrEqual(weaponName,  "weapon_m4a1"))
